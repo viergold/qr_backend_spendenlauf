@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel</title>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 40px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        h1, h2 {
+            margin-top: 0;
+            color: #222;
+        }
+
+        label {
+            font-weight: 600;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 6px;
+            margin-bottom: 18px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+
+        button {
+            background: #0078ff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #005fcc;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th {
+            background: #0078ff;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h1>Admin Panel</h1>
+
+    <form method="POST">
+        <label>Zielseite:</label>
+        <input type="text" name="target_page" required>
+
+        <label>Client auswählen:</label>
+        <select name="client_id">
+            <option value="ALL">ALLE</option>
+            {% for cid in clients %}
+                <option value="{{ cid }}">{{ cid }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Setzen</button>
+    </form>
+
+    <h2>Bekannte Clients</h2>
+
+    <table>
+        <tr>
+            <th>Client-ID</th>
+            <th>Zielseite</th>
+        </tr>
+
+        {% for cid, page in clients.items() %}
+        <tr>
+            <td>{{ cid }}</td>
+            <td>{{ page }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <hr style="margin:20px 0; border:0; border-top:2px solid #ccc;">
+    <a href="/set_status" style="padding:10px; background:#007bff; color:white; text-decoration:none; border-radius:5px;">
+    Status setzen
+    </a>
+</div>
+
+
+
+</body>
+</html>

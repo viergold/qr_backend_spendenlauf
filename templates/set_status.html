@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Race Status</title>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 40px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        h1, h2 {
+            margin-top: 0;
+            color: #222;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 12px;
+        }
+
+        input[type="checkbox"] {
+            transform: scale(1.3);
+            margin-right: 10px;
+        }
+
+        button {
+            background: #0078ff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: background 0.2s;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            background: #005fcc;
+        }
+
+        pre {
+            background: #f4f6f8;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+
+        .backlink {
+            display: inline-block;
+            margin-top: 25px;
+            padding: 10px 16px;
+            background: #0078ff;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .backlink:hover {
+            background: #005fcc;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h1>Race Status Verwaltung</h1>
+
+    <label>
+        <input type="checkbox" id="running"> running
+    </label>
+
+    <label>
+        <input type="checkbox" id="pre_run"> pre_run
+    </label>
+
+    <button onclick="updateStatus()">Status speichern</button>
+
+    <h2>Aktueller Status</h2>
+    <pre id="currentStatus">Lade...</pre>
+
+    <button onclick="loadStatus()">Neu laden</button>
+
+    <hr style="margin:30px 0; border:0; border-top:2px solid #ccc;">
+
+    <a class="backlink" href="/admin">Zurück zum Admin Panel</a>
+</div>
+
+<script>
+    async function loadStatus() {
+        const res = await fetch("/api/race_status");
+        const data = await res.json();
+
+        document.getElementById("running").checked = data.running === true;
+        document.getElementById("pre_run").checked = data.pre_run === true;
+
+        document.getElementById("currentStatus").textContent =
+            JSON.stringify(data, null, 2);
+    }
+
+    async function updateStatus() {
+        const body = {
+            running: document.getElementById("running").checked,
+            pre_run: document.getElementById("pre_run").checked
+        };
+
+        const res = await fetch("/api/race_status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+
+        const data = await res.json();
+        document.getElementById("currentStatus").textContent =
+            JSON.stringify(data.new_state, null, 2);
+    }
+
+    loadStatus();
+</script>
+
+</body>
+</html>

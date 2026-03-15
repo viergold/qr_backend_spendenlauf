@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Client</title>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+
+        .card {
+            background: #fff;
+            padding: 40px 50px;
+            border-radius: 14px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            max-width: 420px;
+            width: 90%;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 28px;
+            color: #222;
+        }
+
+        #info {
+            font-size: 20px;
+            margin-top: 15px;
+            padding: 12px;
+            background: #eef3ff;
+            border-left: 4px solid #4a7dff;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="card">
+    <h1>Willkommen!</h1>
+    <div id="info">Client-ID: {{ client_id }}</div>
+</div>
+
+<script>
+    function getClientId() {
+        const match = document.cookie.match(/client_id=([^;]+)/);
+        return match ? match[1] : null;
+    }
+
+    const clientId = getClientId();
+    const currentPage = window.location.pathname.replace("/", "");
+
+    async function checkNextPage() {
+        if (!clientId) return;
+
+        const res = await fetch(`/api/next_page/${clientId}`);
+        const data = await res.json();
+
+        if (!data.next_page) return;
+
+        if (data.next_page !== currentPage) {
+            window.location.href = `/${data.next_page}`;
+        }
+    }
+
+    setInterval(checkNextPage, 1000);
+</script>
+
+</body>
+</html>
