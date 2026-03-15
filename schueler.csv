@@ -1,0 +1,26 @@
+schueler_id, vorname, nachname, klasse, geschlecht
+1001,Anna,Müller,5a,w
+1002,Ben,Schmidt,5a,m
+1003,Clara,Schneider,5a,w
+1004,David,Fischer,5a,m
+1005,Emma,Weber,5a,w
+1006,Fabian,Mayer,5a,m
+1007,Greta,Wagner,6b,w
+1008,Hannes,Becker,6b,m
+1009,Isabella,Schulz,6b,w
+1010,Jonas,Hoffmann,6b,m
+1011,Karla,Schäfer,6b,w
+1012,Leon,Koch,6b,m
+1013,Maria,Bauer,8d,w
+1014,Noah,Richter,8d,m
+1015,Olivia,Klein,8d,w
+1016,Paul,Wolf,8d,m
+1017,Quentin,Schröder,8d,m
+1018,Rosa,Neumann,8d,w
+1019,Samuel,Schwarz,7f,m
+1020,Tina,Zimmermann,7f,w
+1021,Uwe,Braun,7f,m
+1022,Vanessa,Krüger,7f,w
+1023,Willi,Hartmann,7f,m
+1024,Xenia,Lange,7f,w
+1025,Yannick,Schmitt,7f,m
