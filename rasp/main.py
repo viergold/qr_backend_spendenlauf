@@ -1,142 +1,209 @@
-import requests
 import os
 import re
 import time
+import requests
+import rtmidi
+
+
+# ---------------------------------------------------------
+# IP HANDLING
+# ---------------------------------------------------------
 
 def get_or_set_ip(filepath="ip.ip"):
-    # Regex für einfache IPv4-Prüfung
+    """Liest eine gespeicherte IP oder fragt den Nutzer nach einer neuen."""
     ip_regex = r"^(?:\d{1,3}\.){3}\d{1,3}$"
 
-    # Falls Datei existiert, versuchen wir die IP zu lesen
     if os.path.exists(filepath):
         with open(filepath, "r") as f:
             content = f.read().strip()
             if re.match(ip_regex, content):
                 print(f"Gefundene IP: {content}")
                 return content
-            else:
-                print("Keine gültige IP in der Datei gefunden.")
+            print("Keine gültige IP in der Datei gefunden.")
 
-    # Wenn keine gültige IP vorhanden ist → Nutzer fragen
     while True:
         new_ip = input("Bitte gib eine IP-Adresse ein: ").strip()
         if re.match(ip_regex, new_ip):
-            # IP speichern
             with open(filepath, "w") as f:
                 f.write(new_ip)
             print(f"IP gespeichert: {new_ip}")
             return new_ip
-        else:
-            print("Ungültige IP. Bitte erneut eingeben.")
+        print("Ungültige IP. Bitte erneut eingeben.")
 
 
-
-
-
-import rtmidi
-import time
+# ---------------------------------------------------------
+# MIDI CONTROLLER
+# ---------------------------------------------------------
 
 class MidiController:
     def __init__(self, port_name=None):
         self.midi_out = rtmidi.MidiOut()
-
         ports = self.midi_out.get_ports()
+
         print("Gefundene MIDI-Ports:", ports)
 
-        # Automatisch Daslight-Port finden
+        # Automatische Port-Suche
         if port_name is None:
             for p in ports:
-                if "daslight" in p.lower():
+                if "daslight" in p.lower() or "loopmidi" in p.lower():
                     port_name = p
                     break
 
-        port_name = "loopMIDI Port 1"
         if port_name is None:
-            raise RuntimeError("Kein Daslight MIDI-Port gefunden!")
+            raise RuntimeError("Kein passender MIDI-Port gefunden!")
 
         self.midi_out.open_port(ports.index(port_name))
         print(f"Verbunden mit: {port_name}")
 
-    # Note On
     def note_on(self, note, velocity=100, channel=0):
-        status = 0x90 + channel
-        self.midi_out.send_message([status, note, velocity])
+        self.midi_out.send_message([0x90 + channel, note, velocity])
         print(f"Note ON → {note}")
 
-    # Note Off
     def note_off(self, note, channel=0):
-        status = 0x80 + channel
-        self.midi_out.send_message([status, note, 0])
+        self.midi_out.send_message([0x80 + channel, note, 0])
         print(f"Note OFF → {note}")
 
-    # Control Change (Fader/Regler)
     def cc(self, control, value, channel=0):
-        status = 0xB0 + channel
-        self.midi_out.send_message([status, control, value])
+        self.midi_out.send_message([0xB0 + channel, control, value])
         print(f"CC {control} → {value}")
 
 
-controller = MidiController()
-locked=False
-pre_run=False
+# ---------------------------------------------------------
+# KONSTANTEN
+# ---------------------------------------------------------
 
-off=False
-last = ""
-ip = "https://"+get_or_set_ip()+":5000"
+BASE_NOTES = {1: 60, 2: 70, 3: 80, 4: 90}
+
+OFFSETS = {
+    "inactive": 0,
+    "active": 2,
+    "scanner": 4,
+    "off": 6
+}
+
+
+# ---------------------------------------------------------
+# HILFSFUNKTIONEN
+# ---------------------------------------------------------
+
+def safe_get_json(url):
+    """Sicheres GET mit JSON-Parsing."""
+    try:
+        r = requests.get(url, verify=False, timeout=1.5)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        print(f"⚠️ Fehler bei Request {url}: {e}")
+        return None
+
+
+def black(controller):
+    """Alle Scanner auf OFF setzen."""
+    for i in range(1, 5):
+        note = BASE_NOTES[i] + OFFSETS["off"]
+        controller.note_on(note)
+        controller.note_off(note)
+
+
+# ---------------------------------------------------------
+# HAUPTPROGRAMM
+# ---------------------------------------------------------
+
+controller = MidiController()
+ip = "https://" + get_or_set_ip() + ":5000"
 print("Verwendete IP:", ip)
 
+last_race_state = None
+last_scanner_state = {i: None for i in range(1, 5)}
+
 while True:
-    try:
-        response = requests.get(ip + "/status_api", verify=False)
-        data = response.json()
-        for key, value in data.items():
-            id_lamp = int(key) + 5
-            id_lamp = id_lamp * 10
-            key = int(key)
-            # print(key, value)
-            if value == True and pre_run == False and locked == False and not last == "good":
-                controller.note_on(id_lamp + 2)
-                controller.note_off(id_lamp + 2)
-                last = "good"
-            elif value == False and pre_run == False and locked == False and not last == "bad":
-                controller.note_on(id_lamp + 0)
-                controller.note_off(id_lamp + 0)
-                last = "bad"
-            elif locked == True and pre_run == False and not last == "locked":
-                controller.note_on(id_lamp + 4)
-                controller.note_off(id_lamp + 4)
-                last = "locked"
-            elif pre_run == True and not last == "pre_run":
-                controller.note_on(id_lamp + 6)
-                controller.note_off(id_lamp + 6)
-                last = "pre_run"
+    # Rennstatus
+    data = safe_get_json(ip + "/api/race_status")
+    if not data:
+        time.sleep(0.5)
+        continue
 
+    # Scannerstatus (1–6)
+    data2 = safe_get_json(ip + "/status_api")
+    if not data2:
+        time.sleep(0.5)
+        continue
 
-    except:
-        off = True
-        for i in range(6):
-            i_new=i+6
-            i_new = i_new * 10
-            controller.note_on(i_new + 8)
-            controller.note_off(i_new + 8)
+    print(data)
+    print(data2)
 
-    time.sleep(0.2)
-    try:
-        response = requests.get(ip + "/api/race_status", verify=False)
-        data = response.json()
-        pre_run = data["pre_run"]
-        locked = not data["running"]
-    except:
-        off = True
-        for i in range(6):
-            i_new=i+6
-            i_new = i_new * 10
-            controller.note_on(i_new + 8)
-            controller.note_off(i_new + 8)
+    running = data["running"]
+    pre_run = data["pre_run"]
+    test_run = data["test_run"]
 
+    # Zustand vorher merken
+    prev_running = last_race_state == "running"
+    prev_pre = last_race_state == "pre_run"
+    prev_test = last_race_state == "test_run"
 
+    # -----------------------------------------------------
+    # RENNSTATUS
+    # -----------------------------------------------------
 
+    # TEST RUN
+    if test_run and last_race_state != "test_run":
+        controller.note_on(52)
+        controller.note_off(52)
+        black(controller)
+        last_race_state = "test_run"
 
+    # PRE RUN
+    elif pre_run and last_race_state != "pre_run":
+        controller.note_on(50)
+        controller.note_off(50)
+        black(controller)
+        last_race_state = "pre_run"
 
+    # RUNNING
+    elif running and last_race_state != "running":
+        controller.note_on(54)
+        controller.note_off(54)
+        last_race_state = "running"
 
+    # STOPPED
+    elif not running and not pre_run and not test_run:
 
+        # 🔥 Wenn ein aktiver Modus deaktiviert wurde → Signal 54 senden
+        if prev_running or prev_pre or prev_test:
+            controller.note_on(54)
+            controller.note_off(54)
+
+        # Normales Stop-Signal
+        if last_race_state != "stopped":
+            controller.note_on(53)
+            controller.note_off(53)
+
+        # Scanner zurücksetzen
+        for i in last_scanner_state:
+            last_scanner_state[i] = None
+
+        black(controller)
+        last_race_state = "stopped"
+
+    # -----------------------------------------------------
+    # SCANNER STATUS
+    # -----------------------------------------------------
+    if running:
+        for i in range(1, 5):
+            scan_data = safe_get_json(f"{ip}/api/scan_status/{i}")
+            if not scan_data:
+                continue
+
+            new_state = (
+                "scanner" if scan_data["scanner"]
+                else "active" if data2.get(str(i))
+                else "inactive"
+            )
+
+            if new_state != last_scanner_state[i]:
+                note = BASE_NOTES[i] + OFFSETS[new_state]
+                controller.note_on(note)
+                controller.note_off(note)
+                last_scanner_state[i] = new_state
+
+    time.sleep(0.3)

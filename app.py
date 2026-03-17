@@ -12,6 +12,12 @@ app.secret_key = "secret"
 # Ensure database schema exists before handling requests
 db.db_in()
 
+# Scan-Trigger für 2 Sekunden aktiv
+scan_trigger = {i: False for i in range(1, 7)}
+scan_timestamp = {i: 0 for i in range(1, 7)}
+SCAN_DURATION = 2  # Sekunden
+
+
 # Statusliste für IDs 1–6
 status = {i: False for i in range(1, 7)}
 last_ping = {i: 0 for i in range(1, 7)}
@@ -24,7 +30,8 @@ client_targets = {}
 
 race_state = {
     "running": False,
-    "pre_run": False
+    "pre_run": False,
+    "test_run":False
 }
 
 
@@ -51,6 +58,8 @@ def get_id():
     response.set_cookie("client_id", client_id, max_age=60 * 60 * 24 * 365)
 
     return response
+
+
 
 @app.route("/")
 def index():
@@ -206,19 +215,24 @@ def receive_qr():
         return jsonify({"status": "error"}), 400
 
     qr_text = data.get("qr")
+    scanner_id = data.get("scanner")  # <-- NEU
 
     print("QR erkannt:", qr_text)
     print("Zeit:", datetime.datetime.now())
-
+    # --- Deine bestehende Logik ---
     if db.check_id(qr_text):
+        # --- SCAN-TRIGGER aktivieren ---
+        if scanner_id in scan_trigger:
+            scan_trigger[scanner_id] = True
+            scan_timestamp[scanner_id] = time.time()
+            print(f"📸 Scanner {scanner_id} hat gescannt!")
+
         print("👤 Benutzer:", db.get_name_klasse(qr_text))
         db.runde_hinzufuegen(qr_text)
     else:
         print("⚠️ Unbekannter QR")
 
     return jsonify({"status": "ok", "qr": qr_text})
-
-
 @app.route("/ping")
 def ping():
     try:
@@ -233,6 +247,13 @@ def ping():
     status[client_id] = True
 
     return jsonify({"status": "ok"})
+
+@app.route("/api/scan_status/<int:scanner_id>")
+def api_scan_status_single(scanner_id):
+    if scanner_id not in scan_trigger:
+        return jsonify({"status": "invalid id"}), 400
+
+    return jsonify({"scanner": scan_trigger[scanner_id]})
 
 
 # -----------------------------
@@ -259,9 +280,16 @@ def check_status():
                 set_status_open(i)
         time.sleep(0.5)
 
+def monitor_scan_trigger():
+    while True:
+        now = time.time()
+        for scanner_id in scan_trigger:
+            if scan_trigger[scanner_id] and (now - scan_timestamp[scanner_id] > SCAN_DURATION):
+                scan_trigger[scanner_id] = False
+        time.sleep(0.1)
 
+threading.Thread(target=monitor_scan_trigger, daemon=True).start()
 threading.Thread(target=monitor_scanners, daemon=True).start()
-threading.Thread(target=check_status, daemon=True).start()
 
 
 if __name__ == "__main__":

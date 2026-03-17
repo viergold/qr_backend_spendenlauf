@@ -87,11 +87,15 @@
     <h1>Race Status Verwaltung</h1>
 
     <label>
-        <input type="checkbox" id="running"> running
+        <input type="checkbox" id="running"> Laufen
     </label>
 
     <label>
-        <input type="checkbox" id="pre_run"> pre_run
+        <input type="checkbox" id="pre_run"> vor dem Laufen
+    </label>
+
+    <label>
+        <input type="checkbox" id="test_run"> Test Lauf
     </label>
 
     <button onclick="updateStatus()">Status speichern</button>
@@ -113,6 +117,7 @@
 
         document.getElementById("running").checked = data.running === true;
         document.getElementById("pre_run").checked = data.pre_run === true;
+        document.getElementById("test_run").checked = data.test_run === true;
 
         document.getElementById("currentStatus").textContent =
             JSON.stringify(data, null, 2);
@@ -121,7 +126,8 @@
     async function updateStatus() {
         const body = {
             running: document.getElementById("running").checked,
-            pre_run: document.getElementById("pre_run").checked
+            pre_run: document.getElementById("pre_run").checked,
+            test_run: document.getElementById("test_run").checked,
         };
 
         const res = await fetch("/api/race_status", {

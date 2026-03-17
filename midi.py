@@ -44,6 +44,6 @@ class MidiController:
 controller = MidiController()
 
 # Button drücken
-controller.note_on(66)
-controller.note_off(66)
+controller.note_on(54)
+controller.note_off(54)
 
