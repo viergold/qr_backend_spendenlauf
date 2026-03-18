@@ -288,6 +288,14 @@ def monitor_scan_trigger():
                 scan_trigger[scanner_id] = False
         time.sleep(0.1)
 
+@app.route("/api/scan_status_all/")
+def api_scan_status_single(scanner_id):
+    if scanner_id not in scan_trigger:
+        return jsonify({"status": "invalid id"}), 400
+
+    return jsonify({"scanner": scan_trigger})
+
+
 threading.Thread(target=monitor_scan_trigger, daemon=True).start()
 threading.Thread(target=monitor_scanners, daemon=True).start()
 
