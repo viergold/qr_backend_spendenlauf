@@ -1,119 +1,89 @@
-from flask import Flask, request, jsonify, render_template, make_response, redirect, url_for
+from flask import Flask, request, jsonify, render_template, make_response, redirect
 import datetime
 import time
 import threading
 import db
 import uuid
+import os
+import logging
+from threading import Lock
 
+# -----------------------------
+# Logging konfigurieren
+# -----------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# -----------------------------
+# Flask App
+# -----------------------------
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
 
-app.secret_key = "secret"
+# -----------------------------
+# Locks für Thread-Safety
+# -----------------------------
+lock = Lock()
 
-# Ensure database schema exists before handling requests
-db.db_in()
-
-# Scan-Trigger für 2 Sekunden aktiv
+# -----------------------------
+# Datenstrukturen
+# -----------------------------
+# Scan Trigger
 scan_trigger = {i: False for i in range(1, 7)}
 scan_timestamp = {i: 0 for i in range(1, 7)}
 SCAN_DURATION = 2  # Sekunden
 
-
-# Statusliste für IDs 1–6
+# Status und Pings
 status = {i: False for i in range(1, 7)}
 last_ping = {i: 0 for i in range(1, 7)}
+PING_TIMEOUT = 1.3
 
-PING_TIMEOUT = 1.3  # Scanner pingt alle 100 ms
-
-# Speichert Zielseiten pro Client (jetzt als NAME)
+# Client Targets
 client_targets = {}
 
-
+# Race-State
 race_state = {
     "running": False,
     "pre_run": False,
-    "test_run":False
+    "test_run": False
 }
 
+# -----------------------------
+# Datenbank Init
+# -----------------------------
+db.db_in()
 
 # -----------------------------
-# ROUTES
+# Routes
 # -----------------------------
-
-@app.route("/scanner")
-def scanner():
-    return render_template("scanner.html")
-
-@app.route("/get_id")
-def get_id():
-    client_id = request.cookies.get("client_id")
-
-    if not client_id:
-        client_id = uuid.uuid4().hex[:8]
-
-    # Client automatisch registrieren
-    if client_id not in client_targets:
-        client_targets[client_id] = None
-
-    response = make_response(render_template("index.html", client_id=client_id))
-    response.set_cookie("client_id", client_id, max_age=60 * 60 * 24 * 365)
-
-    return response
-
-
 
 @app.route("/")
 def index():
     return redirect("/get_id")
 
 
-@app.route("/set_status", methods=["GET"])
-def set_status():
+@app.route("/get_id")
+def get_id():
+    client_id = request.cookies.get("client_id")
+    if not client_id:
+        client_id = uuid.uuid4().hex[:8]
+
+    with lock:
+        if client_id not in client_targets:
+            client_targets[client_id] = None
+
+    response = make_response(render_template("index.html", client_id=client_id))
+    response.set_cookie("client_id", client_id, max_age=60*60*24*365)
+    return response
+
+
+@app.route("/scanner")
+def scanner():
+    return render_template("scanner.html")
+
+
+@app.route("/set_status")
+def set_status_page():
     return render_template("set_status.html")
-
-
-@app.route("/api/race_status", methods=["GET"])
-def get_race_status():
-    return jsonify(race_state)
-
-@app.route("/api/race_status", methods=["POST"])
-def set_race_status():
-    data = request.json
-
-    # Nur bekannte Keys aktualisieren
-    for key in race_state:
-        if key in data:
-            race_state[key] = bool(data[key])
-
-    return jsonify({"message": "updated", "new_state": race_state})
-
-@app.route("/api/next_page/<client_id>")
-def next_page(client_id):
-    # Falls Client unbekannt → automatisch registrieren
-    if client_id not in client_targets:
-        client_targets[client_id] = None
-
-    return jsonify({"next_page": client_targets[client_id]})
-
-
-@app.route("/admin", methods=["GET", "POST"])
-def admin():
-    global client_targets
-
-    if request.method == "POST":
-        target_page = request.form.get("target_page")  # jetzt STRING
-        target_client = request.form.get("client_id")
-
-        if target_page:
-            if target_client == "ALL":
-                for cid in client_targets:
-                    client_targets[cid] = target_page
-            else:
-                if target_client not in client_targets:
-                    client_targets[target_client] = None
-
-                client_targets[target_client] = target_page
-
-    return render_template("admin.html", clients=client_targets)
 
 
 @app.route("/dashboard")
@@ -121,26 +91,75 @@ def dashboard():
     return render_template("dashboard.html")
 
 
+# -----------------------------
+# Admin
+# -----------------------------
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    global client_targets
+    if request.method == "POST":
+        target_page = request.form.get("target_page")
+        target_client = request.form.get("client_id")
+        with lock:
+            if target_page:
+                if target_client == "ALL":
+                    for cid in client_targets:
+                        client_targets[cid] = target_page
+                else:
+                    client_targets[target_client] = target_page
+    with lock:
+        clients_copy = client_targets.copy()
+    return render_template("admin.html", clients=clients_copy)
+
+
+# -----------------------------
+# Race API
+# -----------------------------
+@app.route("/api/race_status", methods=["GET"])
+def get_race_status():
+    with lock:
+        state_copy = race_state.copy()
+    return jsonify(state_copy)
+
+@app.route("/api/race_status", methods=["POST"])
+def set_race_status():
+    data = request.json
+    with lock:
+        for key in race_state:
+            if key in data:
+                race_state[key] = bool(data[key])
+        new_state = race_state.copy()
+    return jsonify({"message": "updated", "new_state": new_state})
+
+
+# -----------------------------
+# Client Next Page API
+# -----------------------------
+@app.route("/api/next_page/<client_id>")
+def next_page(client_id):
+    with lock:
+        if client_id not in client_targets:
+            client_targets[client_id] = None
+        next_page = client_targets[client_id]
+    return jsonify({"next_page": next_page})
+
+
+# -----------------------------
+# DB APIs
+# -----------------------------
 @app.route("/api/get_best_15_classes/")
 def api_best_15_classes():
     min_avg_runden = request.args.get("min_avg_runden", type=float)
     limit = request.args.get("limit", default=15, type=int)
-
     klasse = request.args.getlist("klasse") or None
-
     data = db.get_best_15_classes(limit=limit, min_avg_runden=min_avg_runden, klasse=klasse)
-
-    return jsonify({
-        "status": "ok",
-        "best_15_classes": [{"klasse": k, "avg_runden": avg} for k, avg in data]
-    })
+    return jsonify({"status": "ok", "best_15_classes":[{"klasse": k, "avg_runden": avg} for k, avg in data]})
 
 
 @app.route("/api/get_total_kilometer/")
 def api_get_total_kilometer():
     klasse = request.args.getlist("klasse") or None
     total = db.get_total_kilometer(0.7, klasse=klasse)
-
     return jsonify({"status": "ok", "total_kilometer": total})
 
 
@@ -148,7 +167,6 @@ def api_get_total_kilometer():
 def api_get_total_runden():
     klasse = request.args.getlist("klasse") or None
     total = db.get_total_runden(klasse=klasse)
-
     return jsonify({"status": "ok", "total_runden": total})
 
 
@@ -160,149 +178,143 @@ def api_get_fastest():
     max_beste_zeit = request.args.get("max_beste_zeit", type=float)
     limit = request.args.get("limit", default=15, type=int)
 
-    data = db.get_fastest(
-        limit=limit,
-        klasse=klasse,
-        min_runden=min_runden,
-        min_beste_zeit=min_beste_zeit,
-        max_beste_zeit=max_beste_zeit
-    )
-
+    data = db.get_fastest(limit=limit, klasse=klasse, min_runden=min_runden, min_beste_zeit=min_beste_zeit, max_beste_zeit=max_beste_zeit)
     return jsonify({
         "status": "ok",
         "fastest": [
-            {
-                "id": id,
-                "name": name,
-                "klasse": klasse,
-                "runden": runden,
-                "beste_zeit": beste_zeit
-            }
+            {"id": id, "name": name, "klasse": klasse, "runden": runden, "beste_zeit": beste_zeit}
             for id, name, klasse, runden, beste_zeit in data
         ]
     })
+
 
 @app.route("/api/get_best_15/")
 def get_best_15():
     klasse = request.args.getlist("klasse") or None
     min_runden = request.args.get("min_runden", type=int)
     limit = request.args.get("limit", default=15, type=int)
-
     top15 = db.get_top_15(limit=limit, klasse=klasse, min_runden=min_runden)
-
     return jsonify({
         "status": "ok",
         "top15": [
-            {
-                "id": id,
-                "name": name,
-                "klasse": klasse,
-                "runden": runden
-            }
+            {"id": id, "name": name, "klasse": klasse, "runden": runden}
             for id, name, klasse, runden, _, _ in top15
         ]
     })
+
+
+# -----------------------------
+# Status API
+# -----------------------------
 @app.route("/status_api")
 def status_api():
-    return jsonify(status)
+    with lock:
+        return jsonify(status.copy())
 
 
+# -----------------------------
+# QR Scanner
+# -----------------------------
 @app.route("/qr", methods=["POST"])
 def receive_qr():
     data = request.get_json(silent=True)
-
     if not data:
         return jsonify({"status": "error"}), 400
 
     qr_text = data.get("qr")
-    scanner_id = data.get("scanner")  # <-- NEU
+    try:
+        scanner_id = int(data.get("scanner"))
+    except:
+        scanner_id = None
 
-    print("QR erkannt:", qr_text)
-    print("Zeit:", datetime.datetime.now())
-    # --- Deine bestehende Logik ---
+    logging.info(f"QR erkannt: {qr_text} | Scanner: {scanner_id} | Zeit: {datetime.datetime.now()}")
+
     if db.check_id(qr_text):
-        # --- SCAN-TRIGGER aktivieren ---
         if scanner_id in scan_trigger:
-            scan_trigger[scanner_id] = True
-            scan_timestamp[scanner_id] = time.time()
-            print(f"📸 Scanner {scanner_id} hat gescannt!")
-
-        print("👤 Benutzer:", db.get_name_klasse(qr_text))
+            with lock:
+                scan_trigger[scanner_id] = True
+                scan_timestamp[scanner_id] = time.time()
+            logging.info(f"📸 Scanner {scanner_id} hat gescannt!")
+        logging.info(f"👤 Benutzer: {db.get_name_klasse(qr_text)}")
         db.runde_hinzufuegen(qr_text)
     else:
-        print("⚠️ Unbekannter QR")
+        logging.warning("⚠️ Unbekannter QR")
 
     return jsonify({"status": "ok", "qr": qr_text})
+
+
+# -----------------------------
+# Ping API
+# -----------------------------
 @app.route("/ping")
 def ping():
-    try:
-        client_id = int(request.args.get("id"))
-    except:
+    client_id = request.args.get("id", type=int)
+    if client_id is None or client_id not in status:
         return jsonify({"status": "invalid id"}), 400
-
-    if client_id not in status:
-        return jsonify({"status": "invalid id"}), 400
-
-    last_ping[client_id] = time.time()
-    status[client_id] = True
-
+    with lock:
+        last_ping[client_id] = time.time()
+        status[client_id] = True
     return jsonify({"status": "ok"})
 
+
+# -----------------------------
+# Scan Status APIs
+# -----------------------------
 @app.route("/api/scan_status/<int:scanner_id>")
 def api_scan_status_single(scanner_id):
     if scanner_id not in scan_trigger:
         return jsonify({"status": "invalid id"}), 400
+    with lock:
+        value = scan_trigger[scanner_id]
+    return jsonify({"scanner": value})
 
-    return jsonify({"scanner": scan_trigger[scanner_id]})
+
+@app.route("/api/scan_status_all/")
+def api_scan_status_all():
+    with lock:
+        return jsonify({"scanner": scan_trigger.copy()})
 
 
 # -----------------------------
 # Hintergrund-Threads
 # -----------------------------
-
 def monitor_scanners():
     while True:
         now = time.time()
-        for scanner_id in status:
-            if now - last_ping[scanner_id] > PING_TIMEOUT:
-                status[scanner_id] = False
+        with lock:
+            for scanner_id in status:
+                if now - last_ping[scanner_id] > PING_TIMEOUT:
+                    status[scanner_id] = False
         time.sleep(0.1)
-
-
-def set_status_open(station_id):
-    print(f"✅ Station {station_id} OPEN")
-
-
-def check_status():
-    while True:
-        for i in range(1, 7):
-            if status[i]:
-                set_status_open(i)
-        time.sleep(0.5)
 
 def monitor_scan_trigger():
     while True:
         now = time.time()
-        for scanner_id in scan_trigger:
-            if scan_trigger[scanner_id] and (now - scan_timestamp[scanner_id] > SCAN_DURATION):
-                scan_trigger[scanner_id] = False
+        with lock:
+            for scanner_id in scan_trigger:
+                if scan_trigger[scanner_id] and (now - scan_timestamp[scanner_id] > SCAN_DURATION):
+                    scan_trigger[scanner_id] = False
         time.sleep(0.1)
 
-@app.route("/api/scan_status_all/")
-def api_scan_status():
-    if scanner_id not in scan_trigger:
-        return jsonify({"status": "invalid id"}), 400
+def check_status():
+    while True:
+        with lock:
+            for i in range(1, 7):
+                if status[i]:
+                    logging.info(f"✅ Station {i} OPEN")
+        time.sleep(0.5)
 
-    return jsonify({"scanner": scan_trigger})
 
-
-threading.Thread(target=monitor_scan_trigger, daemon=True).start()
+# -----------------------------
+# Threads starten
+# -----------------------------
 threading.Thread(target=monitor_scanners, daemon=True).start()
+threading.Thread(target=monitor_scan_trigger, daemon=True).start()
+threading.Thread(target=check_status, daemon=True).start()
 
 
+# -----------------------------
+# Main
+# -----------------------------
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        ssl_context="adhoc",
-    )
+    app.run(host="0.0.0.0", port=5000, ssl_context="adhoc")
