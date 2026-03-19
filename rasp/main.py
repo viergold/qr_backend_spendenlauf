@@ -4,7 +4,6 @@ import time
 import requests
 import rtmidi
 
-
 # ---------------------------------------------------------
 # IP HANDLING
 # ---------------------------------------------------------
@@ -42,7 +41,6 @@ class MidiController:
 
         print("Gefundene MIDI-Ports:", ports)
 
-        # Automatische Port-Suche
         if port_name is None:
             for p in ports:
                 if "daslight" in p.lower() or "loopmidi" in p.lower():
@@ -136,7 +134,6 @@ while True:
     pre_run = data["pre_run"]
     test_run = data["test_run"]
 
-    # Zustand vorher merken
     prev_running = last_race_state == "running"
     prev_pre = last_race_state == "pre_run"
     prev_test = last_race_state == "test_run"
@@ -145,40 +142,33 @@ while True:
     # RENNSTATUS
     # -----------------------------------------------------
 
-    # TEST RUN
     if test_run and last_race_state != "test_run":
         controller.note_on(52)
         controller.note_off(52)
         black(controller)
         last_race_state = "test_run"
 
-    # PRE RUN
     elif pre_run and last_race_state != "pre_run":
         controller.note_on(50)
         controller.note_off(50)
         black(controller)
         last_race_state = "pre_run"
 
-    # RUNNING
     elif running and last_race_state != "running":
         controller.note_on(54)
         controller.note_off(54)
         last_race_state = "running"
 
-    # STOPPED
     elif not running and not pre_run and not test_run:
 
-        # 🔥 Wenn ein aktiver Modus deaktiviert wurde → Signal 54 senden
         if prev_running or prev_pre or prev_test:
             controller.note_on(54)
             controller.note_off(54)
 
-        # Normales Stop-Signal
         if last_race_state != "stopped":
             controller.note_on(53)
             controller.note_off(53)
 
-        # Scanner zurücksetzen
         for i in last_scanner_state:
             last_scanner_state[i] = None
 
@@ -186,17 +176,23 @@ while True:
         last_race_state = "stopped"
 
     # -----------------------------------------------------
-    # SCANNER STATUS
+    # SCANNER STATUS (optimiert)
     # -----------------------------------------------------
+
     if running:
+        scan_all = safe_get_json(f"{ip}/api/scan_status_all/")
+        if scan_all:
+            scanner_states = scan_all.get("scanner", {})
+        else:
+            scanner_states = {}
+
         for i in range(1, 5):
-            scan_data = safe_get_json(f"{ip}/api/scan_status/{i}")
-            if not scan_data:
-                continue
+            scan_active = scanner_states.get(str(i), False)
+            active = data2.get(str(i), False)
 
             new_state = (
-                "scanner" if scan_data["scanner"]
-                else "active" if data2.get(str(i))
+                "scanner" if scan_active
+                else "active" if active
                 else "inactive"
             )
 
