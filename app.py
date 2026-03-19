@@ -222,10 +222,7 @@ def receive_qr():
         return jsonify({"status": "error"}), 400
 
     qr_text = data.get("qr")
-    try:
-        scanner_id = int(data.get("scanner"))
-    except:
-        scanner_id = None
+    scanner_id = data.get("scanner")
 
     logging.info(f"QR erkannt: {qr_text} | Scanner: {scanner_id} | Zeit: {datetime.datetime.now()}")
 
@@ -233,15 +230,17 @@ def receive_qr():
         if scanner_id in scan_trigger:
             with lock:
                 scan_trigger[scanner_id] = True
-                scan_timestamp[scanner_id] = time.time()  # Timer neu starten
-            logging.info(f"📸 Scanner {scanner_id} hat gescannt!")
+                scan_timestamp[scanner_id] = time.time()
 
-        logging.info(f"👤 Benutzer: {db.get_name_klasse(qr_text)}")
+        name = db.get_name_klasse(qr_text)
+        logging.info(f"👤 Benutzer: {name}")
         db.runde_hinzufuegen(qr_text)
+
+        return jsonify({"status": "ok", "qr": name})
+
     else:
         logging.warning("⚠️ Unbekannter QR")
-
-    return jsonify({"status": "ok", "qr": qr_text})
+        return jsonify({"status": "error"}), 400
 
 # -----------------------------
 # Ping API

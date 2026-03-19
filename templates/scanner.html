@@ -3,7 +3,7 @@
 
 <head>
 <meta charset="UTF-8">
-<title>Ultra QR Scanner</title>
+<title>QR Scanner</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -43,7 +43,7 @@ body {
 
 #status {
     margin-top: 20px;
-    font-size: 20px;
+    font-size: 22px;
     color: #00ff88;
 }
 </style>
@@ -52,7 +52,7 @@ body {
 
 <body>
 
-<h1>🚀 Ultra QR Scanner</h1>
+<h1>🚀QR Scanner</h1>
 
 <div id="reader">
     <div id="scanBox"></div>
@@ -61,25 +61,60 @@ body {
 <div id="status">Scanner startet...</div>
 
 <script>
+/* ---------------------------------------------------
+   SCANNER-ID ABFRAGEN
+--------------------------------------------------- */
+const CLIENT_ID = parseInt(prompt("Bitte Scanner-ID eingeben:"));
+if (!CLIENT_ID || isNaN(CLIENT_ID)) {
+    document.getElementById("status").innerHTML = "❌ Ungültige Scanner-ID";
+}
 
-
-const CLIENT_ID = prompt("Bitte Scanner-ID eingeben:");
-
+/* ---------------------------------------------------
+   SCAN-COOLDOWN & HISTORY
+--------------------------------------------------- */
 let scanHistory = {};
-let cooldown = 60000;
-let qrScanner;
+let cooldown = 60000; // 60 Sekunden
 
+setInterval(() => {
+    const now = Date.now();
+    for (let code in scanHistory) {
+        if (now - scanHistory[code] > cooldown) {
+            delete scanHistory[code];
+        }
+    }
+}, 5000);
+
+/* ---------------------------------------------------
+   QR SENDEN + NAME ANZEIGEN
+--------------------------------------------------- */
 function sendQR(text) {
     fetch("/qr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             qr: text,
-            scanner: parseInt(CLIENT_ID)   // 👈 DAS IST DER FIX
+            scanner: CLIENT_ID
         })
     })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === "ok") {
+            document.getElementById("status").innerHTML =
+                "👤 <b>" + data.qr + "</b> wurde erkannt";
+        } else {
+            document.getElementById("status").innerHTML =
+                "❌ Fehler beim Abrufen des Namens";
+        }
+    })
+    .catch(() => {
+        document.getElementById("status").innerHTML =
+            "❌ Server nicht erreichbar";
+    });
 }
 
+/* ---------------------------------------------------
+   QR-SCAN HANDLING
+--------------------------------------------------- */
 function onScanSuccess(decodedText) {
     let now = Date.now();
 
@@ -90,13 +125,16 @@ function onScanSuccess(decodedText) {
     scanHistory[decodedText] = now;
 
     document.getElementById("status").innerHTML =
-        "✅ QR erkannt:<br>" + decodedText;
+        "📡 QR erkannt – sende Daten...";
 
     sendQR(decodedText);
 }
 
+/* ---------------------------------------------------
+   SCANNER STARTEN
+--------------------------------------------------- */
 async function startScanner() {
-    qrScanner = new Html5Qrcode("reader");
+    const qrScanner = new Html5Qrcode("reader");
 
     const cameras = await Html5Qrcode.getCameras();
     if (!cameras.length) {
@@ -130,49 +168,34 @@ async function startScanner() {
     );
 }
 
-function pingServer() {
-    fetch("/ping?id=" + CLIENT_ID)
-        .then(res => res.json())
-        .then(data => {
-            console.log("Ping:", data.status);
-        })
-        .catch(() => {
-            console.log("Ping fehlgeschlagen");
-        });
-}
-
-setInterval(pingServer, 1000);
-
 startScanner();
 
-</script>
-<script>
-    function getClientId() {
-        const match = document.cookie.match(/client_id=([^;]+)/);
-        return match ? match[1] : null;
+/* ---------------------------------------------------
+   PAGE SWITCHING
+--------------------------------------------------- */
+function getClientId() {
+    const match = document.cookie.match(/client_id=([^;]+)/);
+    return match ? match[1] : null;
+}
+
+const clientId = getClientId();
+const currentPage = window.location.pathname.replace("/", "");
+
+async function checkNextPage() {
+    if (!clientId) return;
+
+    const res = await fetch(`/api/next_page/${clientId}`);
+    const data = await res.json();
+
+    if (!data.next_page) return;
+
+    if (data.next_page !== currentPage) {
+        window.location.href = `/${data.next_page}`;
     }
+}
 
-    const clientId = getClientId();
-    const currentPage = window.location.pathname.replace("/", "");
-
-    async function checkNextPage() {
-        if (!clientId) return;
-
-        const res = await fetch(`/api/next_page/${clientId}`);
-        const data = await res.json();
-
-        if (!data.next_page) return;
-
-        // Nur wechseln, wenn man NICHT schon auf der Zielseite ist
-        if (data.next_page !== currentPage) {
-            window.location.href = `/${data.next_page}`;
-        }
-    }
-
-    setInterval(checkNextPage, 1000);
+setInterval(checkNextPage, 1000);
 </script>
-
-
 
 </body>
 </html>
