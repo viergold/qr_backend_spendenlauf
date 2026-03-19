@@ -30,7 +30,7 @@ lock = Lock()
 # Scan Trigger
 scan_trigger = {i: False for i in range(1, 7)}
 scan_timestamp = {i: 0 for i in range(1, 7)}
-SCAN_DURATION = 2  # Sekunden
+SCAN_DURATION = 1.0  # Sekunden
 
 # Status und Pings
 status = {i: False for i in range(1, 7)}
@@ -233,15 +233,15 @@ def receive_qr():
         if scanner_id in scan_trigger:
             with lock:
                 scan_trigger[scanner_id] = True
-                scan_timestamp[scanner_id] = time.time()
+                scan_timestamp[scanner_id] = time.time()  # Timer neu starten
             logging.info(f"📸 Scanner {scanner_id} hat gescannt!")
+
         logging.info(f"👤 Benutzer: {db.get_name_klasse(qr_text)}")
         db.runde_hinzufuegen(qr_text)
     else:
         logging.warning("⚠️ Unbekannter QR")
 
     return jsonify({"status": "ok", "qr": qr_text})
-
 
 # -----------------------------
 # Ping API
@@ -264,15 +264,16 @@ def ping():
 def api_scan_status_single(scanner_id):
     if scanner_id not in scan_trigger:
         return jsonify({"status": "invalid id"}), 400
+
     with lock:
         value = scan_trigger[scanner_id]
-    return jsonify({"scanner": value})
 
+    return jsonify({"scanner": value})
 
 @app.route("/api/scan_status_all/")
 def api_scan_status_all():
     with lock:
-        return jsonify({"scanner": scan_trigger.copy()})
+        return jsonify({"scanner": scan_trigger})
 
 
 # -----------------------------
@@ -292,9 +293,12 @@ def monitor_scan_trigger():
         now = time.time()
         with lock:
             for scanner_id in scan_trigger:
-                if scan_trigger[scanner_id] and (now - scan_timestamp[scanner_id] > SCAN_DURATION):
-                    scan_trigger[scanner_id] = False
-        time.sleep(0.1)
+                if scan_trigger[scanner_id]:
+                    # Trigger bleibt SCAN_DURATION Sekunden aktiv
+                    if now - scan_timestamp[scanner_id] >= SCAN_DURATION:
+                        scan_trigger[scanner_id] = False
+                        logging.info(f"Trigger Reset für Scanner {scanner_id}")
+        time.sleep(0.05)
 
 def check_status():
     while True:

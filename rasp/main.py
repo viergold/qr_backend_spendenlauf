@@ -127,8 +127,6 @@ while True:
         time.sleep(0.5)
         continue
 
-    print(data)
-    print(data2)
 
     running = data["running"]
     pre_run = data["pre_run"]
@@ -186,6 +184,7 @@ while True:
         else:
             scanner_states = {}
 
+        print(scanner_states)
         for i in range(1, 5):
             scan_active = scanner_states.get(str(i), False)
             active = data2.get(str(i), False)
@@ -195,6 +194,10 @@ while True:
                 else "active" if active
                 else "inactive"
             )
+            #if new_state=="scanner":
+            #    print("activatet")
+            #if new_state=="active":
+            #    print("Scanning")
 
             if new_state != last_scanner_state[i]:
                 note = BASE_NOTES[i] + OFFSETS[new_state]

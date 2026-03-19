@@ -73,12 +73,11 @@ function sendQR(text) {
     fetch("/qr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr: text })
+        body: JSON.stringify({
+            qr: text,
+            scanner: parseInt(CLIENT_ID)   // 👈 DAS IST DER FIX
+        })
     })
-    .catch(() => {
-        document.getElementById("status").innerHTML =
-            "⚠️ Keine Verbindung zum Server!";
-    });
 }
 
 function onScanSuccess(decodedText) {
