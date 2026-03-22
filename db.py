@@ -89,6 +89,20 @@ def runde_hinzufuegen(id):
         else:
             print(f"Runde für ID {id} wurde erhöht. Laufzeit: {laufzeit:.2f} Sekunden")
 
+def get_all_klassen():
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT klasse
+            FROM spieler
+            WHERE klasse IS NOT NULL AND klasse != ''
+            ORDER BY klasse ASC
+        """)
+        result = cursor.fetchall()
+
+    # flache Liste zurückgeben
+    return [row[0] for row in result]
+
 
 def get_name_klasse(id):
     with get_conn() as conn:

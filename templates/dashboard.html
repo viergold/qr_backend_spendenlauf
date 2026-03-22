@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Spendenlauf Dashboard</title>
 
@@ -11,7 +12,7 @@
       margin: 0;
       height: 100vh;
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: 1fr 1fr 1fr 1fr;
       overflow: hidden;
     }
     .col {
@@ -35,60 +36,36 @@
     .icon { font-size: 1.4em; }
 
     .top-list { list-style: none; padding: 0; margin: 0; }
-    .top-item {
-      margin-bottom: 10px;
-      transition: transform 0.2s ease, opacity 0.2s ease;
-    }
-
-    /* Überhol-Effekt */
-    .top-item.overtake {
-      animation: overtakeMove 0.6s ease-out;
-    }
-    @keyframes overtakeMove {
-      0%   { transform: translateY(10px); opacity: 0.7; }
-      40%  { transform: translateY(-6px); opacity: 1; }
-      100% { transform: translateY(0); }
-    }
+    .top-item { margin-bottom: 10px; }
 
     .bar-container { display: flex; align-items: center; gap: 10px; }
-    .label { width: 120px; font-weight: bold; flex-shrink: 0; }
+
+    /* Namen werden jetzt voll angezeigt (kein ellipsis mehr) */
+    .label {
+      width: 160px;
+      font-weight: bold;
+      flex-shrink: 0;
+      white-space: normal;
+      word-wrap: break-word;
+    }
 
     .bar-holder {
-      width: 180px;
-      height: 14px;
+      width: 150px;
       background: #e0e0e0;
       border-radius: 8px;
-      overflow: hidden;
+      height: 12px;
       position: relative;
+      flex-shrink: 0;
     }
-
     .bar {
       height: 100%;
-      background: var(--bar-color, #3498db);
-      transition: width 0.6s ease-out, border-radius 0.3s ease;
+      border-radius: 8px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transition: width 0.5s ease-in-out;
     }
-
-    /* Morph Animation */
-    .bar.changed-up {
-      animation: morphUp 0.6s ease-out;
-    }
-    .bar.changed-down {
-      animation: morphDown 0.6s ease-out;
-    }
-
-    @keyframes morphUp {
-      0%   { transform: scaleX(0.9); filter: brightness(1.1); }
-      50%  { transform: scaleX(1.05); filter: brightness(1.4); }
-      100% { transform: scaleX(1); filter: brightness(1); }
-    }
-
-    @keyframes morphDown {
-      0%   { transform: scaleX(1.05); filter: brightness(1.1); opacity: 1; }
-      50%  { transform: scaleX(0.9);  filter: brightness(0.9); opacity: 0.8; }
-      100% { transform: scaleX(1);    filter: brightness(1);   opacity: 1; }
-    }
-
-    .value { width: 60px; text-align: right; }
+    .value { width: 60px; text-align: right; font-family: monospace; }
 
     .card {
       background: #fff;
@@ -113,199 +90,151 @@
     const urlParams = new URLSearchParams(window.location.search);
     const limit = parseInt(urlParams.get("limit")) || 15;
 
-    const apiParams = new URLSearchParams(window.location.search);
-    if (!apiParams.has("limit")) apiParams.set("limit", limit);
-
-    const apiUrl = (path) =>
-      apiParams.toString() ? `${path}?${apiParams}` : path;
-
-    /* Speicher für alte Werte + alte Reihenfolge */
-    const previousValues = {
-      topList: new Map(),
-      topFast: new Map(),
-      topMost: new Map()
-    };
-
-    const previousOrder = {
-      topList: [],
-      topFast: [],
-      topMost: []
-    };
-
-    document.addEventListener("DOMContentLoaded", () => {
-      document.querySelector('#col-klassen h2').innerHTML =
-        `<span class="icon">🏆</span> Top ${limit} Klassen (Ø-km/Schüler)`;
-      document.querySelector('#col-fastest h2').innerHTML =
-        `<span class="icon">⏱️</span> Top ${limit} Schnellste`;
-      document.querySelector('#col-most h2').innerHTML =
-        `<span class="icon">🏃</span> Top ${limit} Runden-Schüler`;
-
-      loadData();
-    });
-
-    async function fetchJson(url) {
-      try {
-        const res = await fetch(url);
-        return await res.json();
-      } catch (e) {
-        console.error("API Fehler:", e);
-        return null;
-      }
-    }
-
-    function renderList(listId, data, valueKey, maxWidth, color, invert = false) {
-      const list = document.getElementById(listId);
-      list.innerHTML = "";
-
-      if (!data || data.length === 0) return;
-
-      const prevMap = previousValues[listId] || new Map();
-      const prevOrder = previousOrder[listId] || [];
-
-      let best = invert
-        ? Math.min(...data.map(x => x[valueKey]))
-        : Math.max(...data.map(x => x[valueKey]));
-
-      const newOrder = [];
-
-      data.forEach((row, index) => {
-        const value = row[valueKey];
-        let ratio = invert ? best / value : value / best;
-        ratio = Math.max(0, Math.min(1, ratio));
-        const width = ratio * maxWidth;
-        const radius = ratio >= 0.999 ? "8px" : "8px 0 0 8px";
-
-        const idKey = row.id ?? (row.name || row.klasse);
-        newOrder.push(idKey);
-
-        const oldValue = prevMap.get(idKey);
-        let changeClass = "";
-
-        if (oldValue !== undefined && oldValue !== value) {
-          changeClass = value > oldValue ? "changed-up" : "changed-down";
-        }
-
-        /* Überhol-Effekt */
-        let overtakeClass = "";
-        const oldIndex = prevOrder.indexOf(idKey);
-        if (oldIndex !== -1 && oldIndex > index) {
-          overtakeClass = "overtake";
-        }
-
-        const li = document.createElement("li");
-        li.className = `top-item ${overtakeClass}`;
-
-        li.innerHTML = `
-          <div class="bar-container">
-            <span class="label">${row.name || row.klasse}</span>
-            <div class="bar-holder">
-              <div class="bar ${changeClass}"
-                   style="
-                     width:${width}px;
-                     background:${color};
-                     border-radius:${radius};
-                   ">
-              </div>
-            </div>
-            <span class="value">${value.toFixed ? value.toFixed(2) : value}</span>
-          </div>
-        `;
-
-        list.appendChild(li);
-
-        prevMap.set(idKey, value);
-      });
-
-      previousValues[listId] = prevMap;
-      previousOrder[listId] = newOrder;
+    function apiUrl(path) {
+      const currentParams = new URLSearchParams(window.location.search);
+      if (!currentParams.has("limit")) currentParams.set("limit", String(limit));
+      const q = currentParams.toString();
+      return q ? `${path}?${q}` : path;
     }
 
     async function loadData() {
-      const [classes, fastest, most, totalR, totalKm] = await Promise.all([
-        fetchJson(apiUrl("/api/get_best_15_classes/")),
-        fetchJson(apiUrl("/api/get_fastest/")),
-        fetchJson(apiUrl("/api/get_best_15/")),
-        fetchJson(apiUrl("/api/get_total_runden/")),
-        fetchJson(apiUrl("/api/get_total_kilometer/"))
-      ]);
+      // --- Top Klassen ---
+      fetch(apiUrl("/api/get_best_15_classes/"))
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById("topList");
+          list.innerHTML = "";
+          if (!data.best_15_classes?.length) return;
 
-      if (classes?.best_15_classes)
-        renderList("topList", classes.best_15_classes, "avg_runden", 180, "#3498db", false);
+          // Bestwert für 100% Balken ermitteln
+          const maxVal = Math.max(...data.best_15_classes.map(r => r.avg_runden));
 
-      if (fastest?.fastest)
-        renderList("topFast", fastest.fastest, "beste_zeit", 180, "#e67e22", true);
+          data.best_15_classes.forEach(row => {
+            const percentage = maxVal > 0 ? (row.avg_runden / maxVal) * 100 : 0;
+            list.innerHTML += `
+              <li class="top-item">
+                <div class="bar-container">
+                  <span class="label">${row.klasse}</span>
+                  <div class="bar-holder">
+                    <div class="bar" style="width:${percentage}%; background:#3498db;"></div>
+                  </div>
+                  <span class="value">${row.avg_runden.toFixed(2)}</span>
+                </div>
+              </li>`;
+          });
+        });
 
-      if (most?.top15)
-        renderList("topMost", most.top15, "runden", 180, "#2ecc71", false);
+      // --- Top Schnellste ---
+      fetch(apiUrl("/api/get_fastest/"))
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById("topFast");
+          list.innerHTML = "";
+          if (!data.fastest?.length) return;
 
-      document.getElementById("gesamt-runden").textContent =
-        totalR?.total_runden ?? "";
+          // Bei Zeit ist der kleinste Wert der Beste (100% Balken)
+          const minVal = Math.min(...data.fastest.map(r => r.beste_zeit));
 
-      document.getElementById("gesamt-km").textContent =
-        totalKm?.total_kilometer
-          ? totalKm.total_kilometer.toFixed(2) + " km"
-          : "";
+          data.fastest.forEach(row => {
+            const percentage = row.beste_zeit > 0 ? (minVal / row.beste_zeit) * 100 : 0;
+            list.innerHTML += `
+              <li class="top-item">
+                <div class="bar-container">
+                  <span class="label">${row.name} (${row.klasse})</span>
+                  <div class="bar-holder">
+                    <div class="bar" style="width:${percentage}%; background:#e67e22;"></div>
+                  </div>
+                  <span class="value">${row.beste_zeit.toFixed(2)}s</span>
+                </div>
+              </li>`;
+          });
+        });
 
-      const table = document.getElementById("klasse-table");
-      table.innerHTML = "";
-      classes?.best_15_classes?.forEach(row => {
-        table.innerHTML += `
+      // --- Top Runden-Schüler ---
+      fetch(apiUrl("/api/get_best_15/"))
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById("topMost");
+          list.innerHTML = "";
+          if (!data.top15?.length) return;
+
+          const maxVal = Math.max(...data.top15.map(r => r.runden));
+
+          data.top15.forEach(row => {
+            const percentage = maxVal > 0 ? (row.runden / maxVal) * 100 : 0;
+            list.innerHTML += `
+              <li class="top-item">
+                <div class="bar-container">
+                  <span class="label">${row.name} (${row.klasse})</span>
+                  <div class="bar-holder">
+                    <div class="bar" style="width:${percentage}%; background:#2ecc71;"></div>
+                  </div>
+                  <span class="value">${row.runden}</span>
+                </div>
+              </li>`;
+          });
+        });
+
+      // --- Gesamtwerte ---
+      fetch(apiUrl("/api/get_total_runden/")).then(res => res.json()).then(data => {
+        document.getElementById("gesamt-runden").textContent = data.total_runden ?? "0";
+      });
+      fetch(apiUrl("/api/get_total_kilometer/")).then(res => res.json()).then(data => {
+        document.getElementById("gesamt-km").textContent =
+          data.total_kilometer ? data.total_kilometer.toFixed(2) + " km" : "0.00 km";
+      });
+
+      // --- Tabelle ---
+      fetch(apiUrl("/api/get_best_15_classes/")).then(res => res.json()).then(data => {
+        const table = document.getElementById("klasse-table");
+        table.innerHTML = data.best_15_classes?.map(row => `
           <tr>
             <td>${row.klasse}</td>
             <td>${row.avg_runden.toFixed(2)}</td>
-            <td>${(row.avg_runden * 0.7).toFixed(2)}</td>
-          </tr>`;
+            <td>${(row.avg_runden * 0.7).toFixed(2)} km</td>
+          </tr>`).join("") || "";
       });
     }
 
-    function getClientId() {
-      const match = document.cookie.match(/client_id=([^;]+)/);
-      return match ? match[1] : null;
-    }
-
-    const normalizePage = (p) => p ? p.replace(/^\/+|\/+$/g, "") : "";
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      setInterval(loadData, 3000);
+    });
 
     async function checkNextPage() {
-      const clientId = getClientId();
-      if (!clientId) return;
-
-      const data = await fetchJson(`/api/next_page/${clientId}`);
-      if (!data) return;
-
-      const nextPage = normalizePage(data.next_page);
-      const currentPage = normalizePage(
-        window.location.pathname + window.location.search
-      );
-
-      if (nextPage && nextPage !== currentPage)
-        window.location.href = `/${nextPage}`;
+        const match = document.cookie.match(/client_id=([^;]+)/);
+        const clientId = match ? match[1] : null;
+        if (!clientId) return;
+        fetch(`/api/next_page/${clientId}`).then(r => r.json()).then(data => {
+            if (data.next_page) {
+                const next = data.next_page.replace(/^\/+|\/+$/g, "");
+                const current = (window.location.pathname + window.location.search).replace(/^\/+|\/+$/g, "");
+                if (next && next !== current) window.location.href = `/${next}`;
+            }
+        });
     }
-
-    setInterval(loadData, 2000);
     setInterval(checkNextPage, 2000);
   </script>
 </head>
 
 <body>
-
   <div class="col" id="col-klassen">
-    <h2><span class="icon">🏆</span> Top 15 Klassen (Ø-km/Schüler)</h2>
+    <h2><span class="icon">🏆</span> Top Klassen (Ø-Runden)</h2>
     <ul id="topList" class="top-list"><li>Lade...</li></ul>
   </div>
 
   <div class="col" id="col-fastest">
-    <h2><span class="icon">⏱️</span> Top 15 Schnellste</h2>
+    <h2><span class="icon">⏱️</span> Top Schnellste (Schnelste Runde)</h2>
     <ul id="topFast" class="top-list"><li>Lade...</li></ul>
   </div>
 
   <div class="col" id="col-most">
-    <h2><span class="icon">🏃</span> Top 15 Runden-Schüler</h2>
+    <h2><span class="icon">🏃</span> Top Runden-Schüler (Anzahl)</h2>
     <ul id="topMost" class="top-list"><li>Lade...</li></ul>
   </div>
 
   <div class="col" id="col-main">
     <h1><span class="icon">📊</span> Spendenlauf Dashboard</h1>
-
     <div class="summary">
       <div class="card">
         <h3>Gesamtrunden</h3>
@@ -316,15 +245,13 @@
         <p id="gesamt-km">Lade...</p>
       </div>
     </div>
-
     <h2>Klassensummen</h2>
     <table>
       <thead>
-        <tr><th>Klasse</th><th>Runden</th><th>Kilometer</th></tr>
+        <tr><th>Klasse</th><th>Ø-Runden</th><th>Kilometer</th></tr>
       </thead>
       <tbody id="klasse-table"><tr><td colspan="3">Lade...</td></tr></tbody>
     </table>
   </div>
-
 </body>
 </html>

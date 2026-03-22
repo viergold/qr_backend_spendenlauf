@@ -41,6 +41,10 @@
             font-size: 15px;
         }
 
+        select[multiple] {
+            height: 120px;
+        }
+
         button {
             background: #0078ff;
             color: white;
@@ -89,14 +93,30 @@
     <h1>Admin Panel</h1>
 
     <form method="POST">
-        <label>Zielseite:</label>
-        <input type="text" name="target_page" required>
 
+        <!-- ZIELSEITE ALS DROPDOWN -->
+        <label>Zielseite:</label>
+        <select name="target_page" required>
+            <option value="/">Startseite (/)</option>
+            <option value="/dashboard">Dashboard (/dashboard)</option>
+            <option value="/Status_screen">Status Screen (/Status_screen)</option>
+            <option value="/scanner">Scanner (/scanner)</option>
+        </select>
+
+        <!-- CLIENT AUSWAHL -->
         <label>Client auswählen:</label>
         <select name="client_id">
             <option value="ALL">ALLE</option>
             {% for cid in clients %}
                 <option value="{{ cid }}">{{ cid }}</option>
+            {% endfor %}
+        </select>
+
+        <!-- KLASSEN MEHRFACHAUSWAHL -->
+        <label>Klassen auswählen (Mehrfachauswahl möglich):</label>
+        <select name="klasse" multiple>
+            {% for k in klassen %}
+                <option value="{{ k }}">{{ k }}</option>
             {% endfor %}
         </select>
 
@@ -118,13 +138,13 @@
         </tr>
         {% endfor %}
     </table>
+
     <hr style="margin:20px 0; border:0; border-top:2px solid #ccc;">
+
     <a href="/set_status" style="padding:10px; background:#007bff; color:white; text-decoration:none; border-radius:5px;">
-    Status setzen
+        Status setzen
     </a>
 </div>
-
-
 
 </body>
 </html>

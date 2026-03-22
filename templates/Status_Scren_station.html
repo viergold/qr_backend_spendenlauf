@@ -159,7 +159,7 @@ async function checkNextPage() {
     if (!data.next_page) return;
 
     if (data.next_page !== currentPage) {
-        window.location.href = `/${data.next_page}`;
+        window.location.href = `${data.next_page}`;
     }
 }
 

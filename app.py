@@ -106,21 +106,37 @@ def dashboard():
 # -----------------------------
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
+    klassen = db.get_all_klassen()
     global client_targets
+
     if request.method == "POST":
-        target_page = request.form.get("target_page")
-        target_client = request.form.get("client_id")
+        target_page = request.form.get("target_page")          # z.B. /dashboard
+        target_client = request.form.get("client_id")          # z.B. ALL oder client-id
+        selected_klassen = request.form.getlist("klasse")      # z.B. ["5a", "6b"]
+
+        # Basis-Seite
+        page = target_page  # z.B. "/dashboard"
+
+        # Nur beim Dashboard Klassen anhängen
+        if target_page == "/dashboard" and selected_klassen:
+            klasse_param = ",".join(selected_klassen)          # "5a,6b"
+            # WICHTIG: KEIN "https://" hier!
+            page = f"/dashboard?klassen={klasse_param}"
+        elif target_page == "/":
+            page = "/get_id"
+
         with lock:
-            if target_page:
+            if page:
                 if target_client == "ALL":
                     for cid in client_targets:
-                        client_targets[cid] = target_page
+                        client_targets[cid] = page
                 else:
-                    client_targets[target_client] = target_page
+                    client_targets[target_client] = page
+
     with lock:
         clients_copy = client_targets.copy()
-    return render_template("admin.html", clients=clients_copy)
 
+    return render_template("admin.html", clients=clients_copy, klassen=klassen)
 
 # -----------------------------
 # Race API
@@ -157,61 +173,73 @@ def next_page(client_id):
 # -----------------------------
 # DB APIs
 # -----------------------------
+# --- Hilfsfunktion für ODER-Filter ---
+def get_filter_list():
+    """Liest 'klassen' aus der URL und macht daraus eine Liste für SQL IN (...)"""
+    klassen_raw = request.args.get("klassen")
+    if not klassen_raw or klassen_raw.strip() == "":
+        return None
+    # Trenne "5a,6b" zu ["5a", "6b"]
+    return [k.strip() for k in klassen_raw.split(",")]
+
+
+# --- Korrigierte API Endpunkte ---
+
 @app.route("/api/get_best_15_classes/")
 def api_best_15_classes():
-    min_avg_runden = request.args.get("min_avg_runden", type=float)
+    klasse_list = get_filter_list()
     limit = request.args.get("limit", default=15, type=int)
-    klasse = request.args.getlist("klasse") or None
-    data = db.get_best_15_classes(limit=limit, min_avg_runden=min_avg_runden, klasse=klasse)
-    return jsonify({"status": "ok", "best_15_classes":[{"klasse": k, "avg_runden": avg} for k, avg in data]})
+
+    # Deine db.py muss 'klasse' als Liste verarbeiten können
+    data = db.get_best_15_classes(limit=limit, klasse=klasse_list)
+    return jsonify({
+        "status": "ok",
+        "best_15_classes": [{"klasse": k, "avg_runden": avg} for k, avg in data]
+    })
 
 
 @app.route("/api/get_total_kilometer/")
 def api_get_total_kilometer():
-    klasse = request.args.getlist("klasse") or None
-    total = db.get_total_kilometer(0.7, klasse=klasse)
+    klasse_list = get_filter_list()
+    total = db.get_total_kilometer(0.7, klasse=klasse_list)
     return jsonify({"status": "ok", "total_kilometer": total})
 
 
 @app.route("/api/get_total_runden/")
 def api_get_total_runden():
-    klasse = request.args.getlist("klasse") or None
-    total = db.get_total_runden(klasse=klasse)
+    klasse_list = get_filter_list()
+    total = db.get_total_runden(klasse=klasse_list)
     return jsonify({"status": "ok", "total_runden": total})
 
 
 @app.route("/api/get_fastest/")
 def api_get_fastest():
-    klasse = request.args.getlist("klasse") or None
-    min_runden = request.args.get("min_runden", type=int)
-    min_beste_zeit = request.args.get("min_beste_zeit", type=float)
-    max_beste_zeit = request.args.get("max_beste_zeit", type=float)
+    klasse_list = get_filter_list()
     limit = request.args.get("limit", default=15, type=int)
 
-    data = db.get_fastest(limit=limit, klasse=klasse, min_runden=min_runden, min_beste_zeit=min_beste_zeit, max_beste_zeit=max_beste_zeit)
+    data = db.get_fastest(limit=limit, klasse=klasse_list)
     return jsonify({
         "status": "ok",
         "fastest": [
-            {"id": id, "name": name, "klasse": klasse, "runden": runden, "beste_zeit": beste_zeit}
-            for id, name, klasse, runden, beste_zeit in data
+            {"id": id, "name": name, "klasse": kl, "runden": r, "beste_zeit": bz}
+            for id, name, kl, r, bz in data
         ]
     })
 
 
 @app.route("/api/get_best_15/")
 def get_best_15():
-    klasse = request.args.getlist("klasse") or None
-    min_runden = request.args.get("min_runden", type=int)
+    klasse_list = get_filter_list()
     limit = request.args.get("limit", default=15, type=int)
-    top15 = db.get_top_15(limit=limit, klasse=klasse, min_runden=min_runden)
+
+    top15 = db.get_top_15(limit=limit, klasse=klasse_list)
     return jsonify({
         "status": "ok",
         "top15": [
-            {"id": id, "name": name, "klasse": klasse, "runden": runden}
-            for id, name, klasse, runden, _, _ in top15
+            {"id": id, "name": name, "klasse": kl, "runden": r}
+            for id, name, kl, r, _, _ in top15
         ]
     })
-
 
 # -----------------------------
 # Status API
