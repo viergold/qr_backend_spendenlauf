@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Scanner Status</title>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            background: #ffffff;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        /* Vollbild-Farbfläche */
+        #backgroundColor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #cccccc;
+            transition: background-color 0.6s ease;
+            z-index: 1;
+        }
+
+        /* Weiche Box */
+        #textBox {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.85);
+            padding: 40px 60px;
+            border-radius: 40px;
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 2;
+            max-width: 90%;
+            box-shadow: 0 0 40px rgba(0,0,0,0.15);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body>
+
+<div id="backgroundColor"></div>
+<div id="textBox">Warte auf Daten…</div>
+
+<script>
+const scanner_id = parseInt(prompt("Bitte Scanner-ID eingeben:"));
+
+const COLORS = {
+    test_run: "#3A7BD5",
+    pre_run:  "#D64545",
+    stopped:  "#C0392B",
+    scanner:  "#6FCF97",
+    active:   "#F2D16B",
+    inactive: "#D64545"
+};
+
+const INACTIVE_TEXT = "Diser Scanner Ist Inaktiv. Bitte Nutze Einen Anderen";
+
+async function updateScanner() {
+    try {
+        const bg = document.getElementById("backgroundColor");
+        const text = document.getElementById("textBox");
+
+        const race = await fetch("/api/race_status").then(r => r.json());
+
+        if (race.test_run) {
+            bg.style.backgroundColor = COLORS.test_run;
+            text.textContent = "Testlauf: Du darfst weiterlaufen";
+            return;
+        }
+
+        if (race.pre_run) {
+            bg.style.backgroundColor = COLORS.pre_run;
+            text.textContent = "Vor dem Start - Der Spendenlauf wird bald Beginnen";
+            return;
+        }
+
+        if (!race.running) {
+            bg.style.backgroundColor = COLORS.stopped;
+            text.textContent = "Gestoppt: Der Spendenlauf ist Beendet";
+            return;
+        }
+
+        const scanData = await fetch(`/api/scan_status/${scanner_id}`).then(r => r.json());
+        const scan_active = scanData.scanner;
+
+        const nameData = await fetch(`/api/last/scan/${scanner_id}`).then(r => r.json());
+        let name = nameData.last;
+
+        if (!name || name.trim() === "" || name === ",") {
+            name = "Unbekannt";
+        }
+
+        const activeData = await fetch("/status_api").then(r => r.json());
+        const active = activeData[String(scanner_id)];
+
+        let state;
+
+        if (scan_active) {
+            state = "scanner";
+            text.textContent = "Du darfst weiterlaufen: " + name;
+        } else if (active) {
+            state = "active";
+            text.textContent = "Scanning – bitte warten";
+        } else {
+            state = "inactive";
+            text.textContent = INACTIVE_TEXT;
+        }
+
+        bg.style.backgroundColor = COLORS[state];
+
+    } catch (err) {
+        console.error("Fehler:", err);
+    }
+}
+
+setInterval(updateScanner, 500);
+
+/* ---------------------------------------------------
+   AUTO-FULLSCREEN BEIM ERSTEN KLICK
+--------------------------------------------------- */
+let fullscreenActivated = false;
+
+document.addEventListener("click", () => {
+    if (!fullscreenActivated) {
+        fullscreenActivated = true;
+        document.documentElement.requestFullscreen().catch(err => {
+            console.warn("Fullscreen konnte nicht aktiviert werden:", err);
+        });
+    }
+});
+
+/* ---------------------------------------------------
+   PAGE SWITCHING
+--------------------------------------------------- */
+function getClientId() {
+    const match = document.cookie.match(/client_id=([^;]+)/);
+    return match ? match[1] : null;
+}
+
+const clientId = getClientId();
+const currentPage = window.location.pathname.replace("/", "");
+
+async function checkNextPage() {
+    if (!clientId) return;
+
+    const res = await fetch(`/api/next_page/${clientId}`);
+    const data = await res.json();
+
+    if (!data.next_page) return;
+
+    if (data.next_page !== currentPage) {
+        window.location.href = `/${data.next_page}`;
+    }
+}
+
+setInterval(checkNextPage, 1000);
+</script>
+
+</body>
+</html>

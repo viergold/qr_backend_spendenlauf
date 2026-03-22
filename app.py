@@ -32,6 +32,11 @@ scan_trigger = {i: False for i in range(1, 7)}
 scan_timestamp = {i: 0 for i in range(1, 7)}
 SCAN_DURATION = 1.0  # Sekunden
 
+# Last Scan
+
+last_scans = {i: None for i in range(1, 7)}
+
+
 # Status und Pings
 status = {i: False for i in range(1, 7)}
 last_ping = {i: 0 for i in range(1, 7)}
@@ -74,6 +79,11 @@ def get_id():
     response = make_response(render_template("index.html", client_id=client_id))
     response.set_cookie("client_id", client_id, max_age=60*60*24*365)
     return response
+
+
+@app.route("/Status_screen")
+def Status_screen():
+    return render_template("Status_scren_station.html")
 
 
 @app.route("/scanner")
@@ -228,6 +238,8 @@ def receive_qr():
 
     if db.check_id(qr_text):
         if scanner_id in scan_trigger:
+            last_scans[scanner_id]=qr_text
+            print(last_scans.get(scanner_id))
             with lock:
                 scan_trigger[scanner_id] = True
                 scan_timestamp[scanner_id] = time.time()
@@ -259,6 +271,21 @@ def ping():
 # -----------------------------
 # Scan Status APIs
 # -----------------------------
+@app.route("/api/last/scan/<int:scanner_id>")
+def api_last_scan(scanner_id):
+    last_id = last_scans.get(scanner_id)
+
+    if not last_id:
+        return jsonify({"last": None})
+
+    result = db.get_name_klasse(last_id)  # ('Anna Müller', '5a')
+    if not result:
+        return jsonify({"last": None})
+
+    name, klasse = result
+    return jsonify({"last": name, "klasse": klasse})
+
+
 @app.route("/api/scan_status/<int:scanner_id>")
 def api_scan_status_single(scanner_id):
     if scanner_id not in scan_trigger:

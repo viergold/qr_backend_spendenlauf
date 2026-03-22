@@ -113,6 +113,29 @@ function sendQR(text) {
 }
 
 /* ---------------------------------------------------
+   PING AN SERVER SENDEN
+--------------------------------------------------- */
+function sendPing() {
+    if (!CLIENT_ID) return;
+
+    fetch(`/ping?id=${CLIENT_ID}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "ok") {
+                console.warn("Ping-Fehler:", data);
+            }
+        })
+        .catch(() => {
+            console.warn("Ping fehlgeschlagen");
+        });
+}
+
+/* Alle 5 Sekunden pingen */
+setInterval(sendPing, 1000);
+
+
+
+/* ---------------------------------------------------
    QR-SCAN HANDLING
 --------------------------------------------------- */
 function onScanSuccess(decodedText) {
