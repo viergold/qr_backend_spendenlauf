@@ -58,7 +58,7 @@
     }
 
     const clientId = getClientId();
-    const currentPage = window.location.pathname.replace("/", "");
+    const currentPage = window.location.pathname.replace("/", "/");
 
     async function checkNextPage() {
         if (!clientId) return;
