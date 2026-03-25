@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Scanner Übersicht</title>
+
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background: #f4f4f4;
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    .container {
+        display: flex;
+        gap: 30px;
+    }
+
+    .station {
+        width: 200px;
+        height: 200px;
+        background: #cccccc;
+        border-radius: 20px;
+        position: relative;
+        cursor: pointer;
+        transition: transform 0.2s ease, background-color 0.3s ease;
+    }
+
+    .station:hover {
+        transform: scale(1.05);
+    }
+
+    /* Text unsichtbar */
+    .station .info {
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        font-size: 20px;
+        font-weight: bold;
+        padding: 10px;
+        color: #000000;
+    }
+
+    /* Text erscheint beim Hover */
+    .station:hover .info {
+        opacity: 1;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="station" id="station1">
+        <div class="info" id="info1">Lade…</div>
+    </div>
+
+    <div class="station" id="station2">
+        <div class="info" id="info2">Lade…</div>
+    </div>
+
+    <div class="station" id="station3">
+        <div class="info" id="info3">Lade…</div>
+    </div>
+
+    <div class="station" id="station4">
+        <div class="info" id="info4">Lade…</div>
+    </div>
+
+</div>
+
+<script>
+const COLORS = {
+    test_run: "#3A7BD5",
+    pre_run:  "#D64545",
+    stopped:  "#C0392B",
+    scanner:  "#6FCF97",
+    active:   "#F2D16B",
+    inactive: "#D64545"
+};
+
+async function updateStation(id) {
+    try {
+        const box = document.getElementById("station" + id);
+        const info = document.getElementById("info" + id);
+
+        const race = await fetch("/api/race_status").then(r => r.json());
+
+        if (race.test_run) {
+            box.style.backgroundColor = COLORS.test_run;
+            info.textContent = "Testlauf";
+            return;
+        }
+
+        if (race.pre_run) {
+            box.style.backgroundColor = COLORS.pre_run;
+            info.textContent = "Vor dem Start";
+            return;
+        }
+
+        if (!race.running) {
+            box.style.backgroundColor = COLORS.stopped;
+            info.textContent = "Lauf beendet";
+            return;
+        }
+
+        const scanData = await fetch(`/api/scan_status/${id}`).then(r => r.json());
+        const scan_active = scanData.scanner;
+
+        const nameData = await fetch(`/api/last/scan/${id}`).then(r => r.json());
+        let name = nameData.last;
+        if (!name || name.trim() === "" || name === ",") name = "Unbekannt";
+
+        const activeData = await fetch("/status_api").then(r => r.json());
+        const active = activeData[String(id)];
+
+        let state;
+
+        if (scan_active) {
+            state = "scanner";
+            info.textContent = "OK: " + name;
+        } else if (active) {
+            state = "active";
+            info.textContent = "Scanning…";
+        } else {
+            state = "inactive";
+            info.textContent = "Inaktiv";
+        }
+
+        box.style.backgroundColor = COLORS[state];
+
+    } catch (err) {
+        console.error("Fehler:", err);
+    }
+}
+
+function updateAll() {
+    updateStation(1);
+    updateStation(2);
+    updateStation(3);
+    updateStation(4);
+}
+
+setInterval(updateAll, 500);
+</script>
+
+</body>
+</html>

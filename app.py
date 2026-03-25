@@ -82,8 +82,13 @@ def get_id():
 
 
 @app.route("/Status_screen")
-def Status_screen():
+def status_screen():
     return render_template("Status_scren_station.html")
+
+
+@app.route("/Status_screen_all")
+def status_screen_all():
+    return render_template("status_screan_station_all.html")
 
 
 @app.route("/scanner")
@@ -263,24 +268,32 @@ def receive_qr():
     scanner_id = data.get("scanner")
 
     logging.info(f"QR erkannt: {qr_text} | Scanner: {scanner_id} | Zeit: {datetime.datetime.now()}")
+    if race_state.get("running"):
 
-    if db.check_id(qr_text):
-        if scanner_id in scan_trigger:
-            last_scans[scanner_id]=qr_text
-            print(last_scans.get(scanner_id))
-            with lock:
-                scan_trigger[scanner_id] = True
-                scan_timestamp[scanner_id] = time.time()
+        if db.check_id(qr_text):
+            if scanner_id in scan_trigger:
+                last_scans[scanner_id]=qr_text
+                print(last_scans.get(scanner_id))
+                with lock:
+                    scan_trigger[scanner_id] = True
+                    scan_timestamp[scanner_id] = time.time()
 
-        name = db.get_name_klasse(qr_text)
-        logging.info(f"👤 Benutzer: {name}")
-        db.runde_hinzufuegen(qr_text)
+            name = db.get_name_klasse(qr_text)
+            logging.info(f"👤 Benutzer: {name}")
+            db.runde_hinzufuegen(qr_text)
 
-        return jsonify({"status": "ok", "qr": name})
+            return jsonify({"status": "ok","text_pre":"👤", "qr": name,"text_back":"👤"})
 
+        else:
+            logging.warning("⚠️ Unbekannter QR")
+            return jsonify({"status": "error"}), 400
+    elif race_state.get("test_run"):
+        return jsonify({"status": "ok", "text_pre":"Das ist nur ein Testlauf, Scanner ist Aus","qr": "","text_back":""})
+    elif race_state.get("pre_run"):
+        return jsonify({"status": "ok", "text_pre":"Der Spendenlauf hat noch nicht Begonnen, Scanner ist Aus","qr": "","text_back":""})
     else:
-        logging.warning("⚠️ Unbekannter QR")
-        return jsonify({"status": "error"}), 400
+        return jsonify({"status": "ok", "text_pre":"Der Spendenlauf ist Beendet, Scanner ist Aus","qr": "","text_back":""})
+
 
 # -----------------------------
 # Ping API

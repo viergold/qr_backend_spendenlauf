@@ -100,7 +100,7 @@ function sendQR(text) {
     .then(data => {
         if (data.status === "ok") {
             document.getElementById("status").innerHTML =
-                "👤 <b>" + data.qr + "</b> wurde erkannt";
+                data.text_pre+"<b>" + data.qr + "</b>"+data.text_back;
         } else {
             document.getElementById("status").innerHTML =
                 "❌ Fehler beim Abrufen des Namens";
