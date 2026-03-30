@@ -92,4 +92,4 @@ def stream_camera(camera_id):
 
 if __name__ == "__main__":
     # Start mit den gewünschten Parametern
-    app.run(host="0.0.0.0", port=5001, ssl_context="adhoc", debug=True, threaded=True)
+    app.run(host="0.0.0.0", port=5001, debug=True, threaded=True)
