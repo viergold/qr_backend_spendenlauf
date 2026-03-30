@@ -15,7 +15,6 @@
             overflow: hidden;
         }
 
-        /* Vollbild-Farbfläche */
         #backgroundColor {
             position: fixed;
             top: 0;
@@ -27,7 +26,6 @@
             z-index: 1;
         }
 
-        /* Weiche Box */
         #textBox {
             position: fixed;
             top: 50%;
@@ -44,14 +42,34 @@
             box-shadow: 0 0 40px rgba(0,0,0,0.15);
             backdrop-filter: blur(8px);
         }
+
+        /* Hinweis-Button (optional) */
+        #viewerButton {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 4;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            display: none; /* nur anzeigen, wenn Viewer-URL verfügbar */
+        }
     </style>
 </head>
 <body>
 
 <div id="backgroundColor"></div>
 <div id="textBox">Warte auf Daten…</div>
+<button id="viewerButton">Stream öffnen</button>
 
 <script>
+/* -------------------------
+   Grundkonfiguration
+   ------------------------- */
 const scanner_id = parseInt(prompt("Bitte Scanner-ID eingeben:"));
 
 const COLORS = {
@@ -65,6 +83,9 @@ const COLORS = {
 
 const INACTIVE_TEXT = "Diser Scanner Ist Inaktiv. Bitte Nutze Einen Anderen";
 
+/* -------------------------
+   Status-Update Loop
+   ------------------------- */
 async function updateScanner() {
     try {
         const bg = document.getElementById("backgroundColor");
@@ -164,6 +185,93 @@ async function checkNextPage() {
 }
 
 setInterval(checkNextPage, 1000);
+
+/* ---------------------------------------------------
+   Viewer-Button (öffnet separaten Stream-Viewer)
+   - Der Stream wird NICHT auf der Startseite angezeigt.
+   - Viewer öffnet /viewer/scanner_<id> in neuem Tab.
+--------------------------------------------------- */
+(function initViewerButton(){
+    const btn = document.getElementById("viewerButton");
+    const protocol = (location.protocol === "https:") ? "https:" : "http:";
+    const host = window.location.hostname && window.location.hostname !== "" ? window.location.hostname : "localhost";
+    const port = 5001;
+    const cameraName = `scanner_${scanner_id}`;
+    const viewerUrl = `${protocol}//${host}:${port}/viewer/${cameraName}`;
+
+    // Zeige Button, wenn API erreichbar und Kamera gelistet ist
+    async function checkAndShow() {
+        try {
+            const checkUrl = `${protocol}//${host}:${port}/api/cameras`;
+            const res = await fetch(checkUrl);
+            if (!res.ok) throw new Error("API nicht erreichbar");
+            const cams = await res.json();
+            if (cams.includes(cameraName)) {
+                btn.style.display = "block";
+                btn.onclick = () => window.open(viewerUrl, "_blank");
+            } else {
+                btn.style.display = "none";
+            }
+        } catch (e) {
+            btn.style.display = "none";
+        }
+    }
+
+    // initial und periodisch prüfen
+    checkAndShow();
+    setInterval(checkAndShow, 3000);
+})();
+
+/* ---------------------------------------------------
+   Optional: Kamera-Upload-Client (sendet Frames an Server)
+   - Läuft im Hintergrund, beeinflusst Layout nicht.
+   - Falls du den Upload nicht willst, entferne den Aufruf am Ende.
+--------------------------------------------------- */
+async function startCameraStreamUpload() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const track = stream.getVideoTracks()[0];
+        const imageCapture = new ImageCapture(track);
+        sendFrames(imageCapture);
+    } catch (err) {
+        console.error("Kamera konnte nicht gestartet werden:", err);
+    }
+}
+
+async function sendFrames(imageCapture) {
+    while (true) {
+        try {
+            const bitmap = await imageCapture.grabFrame();
+            const canvas = document.createElement("canvas");
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(bitmap, 0, 0);
+            const base64 = canvas.toDataURL("image/jpeg", 0.7);
+
+            const protocol = (location.protocol === "https:") ? "https:" : "http:";
+            const host = window.location.hostname && window.location.hostname !== "" ? window.location.hostname : "localhost";
+            const port = 5001;
+            const uploadUrl = `${protocol}//${host}:${port}/upload_frame/scanner_${scanner_id}`;
+
+            await fetch(uploadUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: base64 })
+            });
+
+        } catch (err) {
+            console.error("Frame konnte nicht gesendet werden:", err);
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        await new Promise(r => setTimeout(r, 80)); // ~12 FPS
+    }
+}
+
+// Starte Upload-Client falls du ihn nutzen willst
+startCameraStreamUpload();
+
 </script>
 
 </body>
