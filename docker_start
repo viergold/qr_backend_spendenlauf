@@ -24,6 +24,7 @@ echo "2) Alles stoppen"
 echo "3) Status anzeigen"
 echo "4) IP aus Logs anzeigen"
 echo "5) Beenden"
+echo "6) Import"
 echo ""
 
 read -p "Auswahl: " choice
@@ -72,6 +73,24 @@ case $choice in
         echo "Beende Script."
         exit 0
         ;;
+
+6)
+    echo -e "${YELLOW}Starte db.py...${NC}"
+    if python3 db.py; then
+        echo -e "${GREEN}db.py erfolgreich beendet.${NC}"
+    else
+        echo -e "${RED}db.py FEHLGESCHLAGEN!${NC}"
+    fi
+
+    echo -e "${YELLOW}Starte csv_import.py...${NC}"
+    if python3 csv_import.py; then
+        echo -e "${GREEN}csv_import.py erfolgreich beendet.${NC}"
+    else
+        echo -e "${RED}csv_import.py FEHLGESCHLAGEN!${NC}"
+    fi
+    ;;
+
+
     *)
         echo -e "${RED}Ungültige Auswahl.${NC}"
         ;;
