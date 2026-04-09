@@ -32,7 +32,21 @@ read -p "Auswahl: " choice
 case $choice in
     1)
         echo -e "${GREEN}Starte SRS Container...${NC}"
-        docker run -d --name srs -p 1935:1935 -p 8080:8080 ossrs/srs:5
+        sudo docker run -d --name srs -p 1935:1935 -p 8080:8080 ossrs/srs:5
+
+
+        # Virtuelle Umgebung erstellen
+        python3 -m venv venv
+
+        # Aktivieren der venv
+        source venv/bin/activate
+
+        # Pip aktualisieren (optional, aber sinnvoll)
+        pip install --upgrade pip
+
+        # Requirements installieren
+        pip install -r requirements.txt
+
 
         echo -e "${GREEN}Starte camera_server.py...${NC}"
         nohup python3 camera_server.py > camera_server.log 2>&1 &
@@ -44,8 +58,8 @@ case $choice in
         ;;
     2)
         echo -e "${RED}Stoppe SRS Container...${NC}"
-        docker stop srs
-        docker rm srs
+        sudo docker stop srs
+        sudo docker rm srs
 
         echo -e "${RED}Stoppe camera_server.py...${NC}"
         pkill -f camera_server.py
@@ -57,7 +71,7 @@ case $choice in
         ;;
     3)
         echo -e "${GREEN}Docker Container Status:${NC}"
-        docker ps
+        sudo docker ps
         echo ""
         echo -e "${GREEN}Python Prozesse:${NC}"
         ps aux | grep -E "camera_server.py|app.py" | grep -v grep
@@ -74,21 +88,21 @@ case $choice in
         exit 0
         ;;
 
-6)
-    echo -e "${YELLOW}Starte db.py...${NC}"
-    if python3 db.py; then
-        echo -e "${GREEN}db.py erfolgreich beendet.${NC}"
-    else
-        echo -e "${RED}db.py FEHLGESCHLAGEN!${NC}"
-    fi
+    6)
+        echo -e "${YELLOW}Starte db.py...${NC}"
+        if python3 db.py; then
+            echo -e "${GREEN}db.py erfolgreich beendet.${NC}"
+        else
+            echo -e "${RED}db.py FEHLGESCHLAGEN!${NC}"
+        fi
 
-    echo -e "${YELLOW}Starte csv_import.py...${NC}"
-    if python3 csv_import.py; then
-        echo -e "${GREEN}csv_import.py erfolgreich beendet.${NC}"
-    else
-        echo -e "${RED}csv_import.py FEHLGESCHLAGEN!${NC}"
-    fi
-    ;;
+        echo -e "${YELLOW}Starte csv_import.py...${NC}"
+        if python3 csv_import.py; then
+            echo -e "${GREEN}csv_import.py erfolgreich beendet.${NC}"
+        else
+            echo -e "${RED}csv_import.py FEHLGESCHLAGEN!${NC}"
+        fi
+        ;;
 
 
     *)
