@@ -27,27 +27,24 @@ def db_in():
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS klassen_money_per (
             id TEXT PRIMARY KEY,
-            mony INTEGER DEFAULT 0
+            mony REAL DEFAULT 0
         )
         """)
-        conn.commit()
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS money_per (
             id INTEGER PRIMARY KEY,
-            mony INTEGER DEFAULT 0,
+            mony REAL DEFAULT 0,
             klasse_id TEXT 
         )
         """)
-        conn.commit()
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS money (
             id TEXT PRIMARY KEY,
-            mony INTEGER DEFAULT 0
+            mony REAL DEFAULT 0
         )
         """)
-        conn.commit()
 
 
 
@@ -56,26 +53,26 @@ def db_in():
 
 
 def set_money(id, amount):
-    """Setzt das Gesamtgeld eines Spielers."""
+    """Setzt das Gesamtgeld eines Spielers (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO money (id, mony)
             VALUES (?, ?)
             ON CONFLICT(id) DO UPDATE SET mony = excluded.mony
-        """, (id, amount))
+        """, (id, float(amount)))
         conn.commit()
 
 
 def add_money(id, amount):
-    """Erhöht oder verringert das Gesamtgeld eines Spielers."""
+    """Erhöht oder verringert das Gesamtgeld eines Spielers (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
 
         cursor.execute("SELECT mony FROM money WHERE id = ?", (id,))
         row = cursor.fetchone()
 
-        new_value = (row[0] if row else 0) + amount
+        new_value = (row[0] if row else 0.0) + float(amount)
 
         cursor.execute("""
             INSERT INTO money (id, mony)
@@ -86,13 +83,13 @@ def add_money(id, amount):
 
 
 def get_money(id):
-    """Gibt das Gesamtgeld eines Spielers zurück."""
+    """Gibt das Gesamtgeld eines Spielers zurück (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT mony FROM money WHERE id = ?", (id,))
         row = cursor.fetchone()
 
-    return row[0] if row else 0
+    return float(row[0]) if row else 0.0
 
 
 # ============================
@@ -100,29 +97,26 @@ def get_money(id):
 # ============================
 
 def update_total_money(key, amount):
-    """
-    Aktualisiert das gesammelte Geld für eine Klasse oder für alle.
-    key = z.B. 'ALL', '7A', '8B'
-    """
+    """Setzt das gesammelte Geld einer Klasse (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO money (id, mony)
             VALUES (?, ?)
             ON CONFLICT(id) DO UPDATE SET mony = excluded.mony
-        """, (key, amount))
+        """, (key, float(amount)))
         conn.commit()
 
 
 def add_total_money(key, amount):
-    """Erhöht das gesammelte Geld für eine Klasse oder für alle."""
+    """Erhöht das gesammelte Geld einer Klasse (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
 
         cursor.execute("SELECT mony FROM money WHERE id = ?", (key,))
         row = cursor.fetchone()
 
-        new_value = (row[0] if row else 0) + amount
+        new_value = (row[0] if row else 0.0) + float(amount)
 
         cursor.execute("""
             INSERT INTO money (id, mony)
@@ -137,25 +131,25 @@ def add_total_money(key, amount):
 # ============================
 
 def set_money_per(id, amount):
-    """Setzt das Geld pro Runde für einen Spieler."""
+    """Setzt das Geld pro Runde für einen Spieler (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO money_per (id, mony)
             VALUES (?, ?)
             ON CONFLICT(id) DO UPDATE SET mony = excluded.mony
-        """, (id, amount))
+        """, (id, float(amount)))
         conn.commit()
 
 
 def get_money_per(id):
-    """Gibt das Geld pro Runde eines Spielers zurück."""
+    """Gibt das Geld pro Runde eines Spielers zurück (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT mony FROM money_per WHERE id = ?", (id,))
         row = cursor.fetchone()
 
-    return row[0] if row else 0
+    return float(row[0]) if row else 0.0
 
 
 # ============================
@@ -163,25 +157,25 @@ def get_money_per(id):
 # ============================
 
 def set_klassen_money(klasse, amount):
-    """Setzt das Geld pro Runde für eine Klasse."""
+    """Setzt das Geld pro Runde für eine Klasse (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO klassen_money_per (id, mony)
             VALUES (?, ?)
             ON CONFLICT(id) DO UPDATE SET mony = excluded.mony
-        """, (klasse, amount))
+        """, (klasse, float(amount)))
         conn.commit()
 
 
 def get_klassen_money(klasse):
-    """Gibt das Geld pro Runde einer Klasse zurück."""
+    """Gibt das Geld pro Runde einer Klasse zurück (REAL)."""
     with get_conn() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT mony FROM klassen_money_per WHERE id = ?", (klasse,))
         row = cursor.fetchone()
 
-    return row[0] if row else 0
+    return float(row[0]) if row else 0.0
 
 def get_students_by_class(klasse):
     with get_conn() as conn:
