@@ -1,0 +1,78 @@
+#!/bin/bash
+
+GREEN="\e[32m"
+RED="\e[31m"
+NC="\e[0m"
+
+echo -e "${GREEN}=== SRS Docker Control Script ===${NC}"
+
+if ! command -v docker &> /dev/null
+then
+    echo -e "${RED}Docker ist nicht installiert. Installiere Docker...${NC}"
+    sudo apt update
+    sudo apt install -y docker.io
+    sudo systemctl enable --now docker
+    echo -e "${GREEN}Docker wurde installiert.${NC}"
+else
+    echo -e "${GREEN}Docker ist bereits installiert.${NC}"
+fi
+
+echo ""
+echo "Was möchtest du tun?"
+echo "1) SRS + camera_server.py + app.py starten"
+echo "2) Alles stoppen"
+echo "3) Status anzeigen"
+echo "4) IP aus Logs anzeigen"
+echo "5) Beenden"
+echo ""
+
+read -p "Auswahl: " choice
+
+case $choice in
+    1)
+        echo -e "${GREEN}Starte SRS Container...${NC}"
+        docker run -d --name srs -p 1935:1935 -p 8080:8080 ossrs/srs:5
+
+        echo -e "${GREEN}Starte camera_server.py...${NC}"
+        nohup python3 camera_server.py > camera_server.log 2>&1 &
+
+        echo -e "${GREEN}Starte app.py...${NC}"
+        nohup python3 app.py > app.log 2>&1 &
+
+        echo -e "${GREEN}Alles läuft jetzt.${NC}"
+        ;;
+    2)
+        echo -e "${RED}Stoppe SRS Container...${NC}"
+        docker stop srs
+        docker rm srs
+
+        echo -e "${RED}Stoppe camera_server.py...${NC}"
+        pkill -f camera_server.py
+
+        echo -e "${RED}Stoppe app.py...${NC}"
+        pkill -f app.py
+
+        echo -e "${GREEN}Alles wurde gestoppt.${NC}"
+        ;;
+    3)
+        echo -e "${GREEN}Docker Container Status:${NC}"
+        docker ps
+        echo ""
+        echo -e "${GREEN}Python Prozesse:${NC}"
+        ps aux | grep -E "camera_server.py|app.py" | grep -v grep
+        ;;
+    4)
+        echo -e "${GREEN}IP aus camera_server.log:${NC}"
+        grep -oP "IP:\s*\K[0-9\.]+" camera_server.log | tail -n 1
+
+        echo -e "${GREEN}IP aus app.log:${NC}"
+        grep -oP "IP:\s*\K[0-9\.]+" app.log | tail -n 1
+        ;;
+    5)
+        echo "Beende Script."
+        exit 0
+        ;;
+    *)
+        echo -e "${RED}Ungültige Auswahl.${NC}"
+        ;;
+esac
