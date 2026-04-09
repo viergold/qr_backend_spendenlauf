@@ -49,7 +49,7 @@ case $choice in
 
 
         echo -e "${GREEN}Starte camera_server.py...${NC}"
-        nohup python3 camera_server.py > camera_server.log 2>&1 &
+        nohup python3 cammera_server.py > camera_server.log 2>&1 &
 
         echo -e "${GREEN}Starte app.py...${NC}"
         nohup python3 app.py > app.log 2>&1 &
