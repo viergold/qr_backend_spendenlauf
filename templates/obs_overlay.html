@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Status Overlay</title>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent; /* OBS transparent */
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #backgroundColor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0,0,0,0); /* Start transparent */
+            transition: background-color 0.6s ease;
+            z-index: 1;
+        }
+
+        #textBox {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 40px 60px;
+            background: rgba(0, 0, 0, 0.45); /* halbtransparent */
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            border-radius: 40px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            z-index: 2;
+            max-width: 90%;
+        }
+    </style>
+</head>
+<body>
+
+<div id="backgroundColor"></div>
+<div id="textBox">Warte auf Daten…</div>
+
+<script>
+/* -------------------------
+   Farben wie in deinem Script
+------------------------- */
+const COLORS = {
+    test_run: "#3A7BD5",
+    pre_run:  "#D64545",
+    stopped:  "#C0392B",
+    active:   "#F2D16B",
+    inactive: "#D64545"
+};
+
+/* -------------------------
+   Status-Update
+------------------------- */
+async function updateStatus() {
+    try {
+        const bg = document.getElementById("backgroundColor");
+        const text = document.getElementById("textBox");
+
+        // Race-Status laden
+        const race = await fetch("/api/race_status").then(r => r.json());
+
+        if (race.test_run) {
+            text.textContent = "Testlauf: Du darfst weiterlaufen";
+            return;
+        }
+
+        if (race.pre_run) {
+            text.textContent = "Vor dem Start – Der Spendenlauf beginnt bald";
+            return;
+        }
+
+        if (!race.running) {
+            text.textContent = "Gestoppt: Der Spendenlauf ist beendet";
+            return;
+        }
+
+        // Wenn Lauf aktiv ist → aktiver Status
+        text.textContent = "Der Spendenlauf läuft – Viel Erfolg!";
+
+    } catch (err) {
+        console.error("Fehler:", err);
+        document.getElementById("textBox").textContent = "Fehler beim Laden";
+    }
+}
+
+setInterval(updateStatus, 500);
+updateStatus();
+</script>
+
+</body>
+</html>

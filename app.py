@@ -52,6 +52,8 @@ race_state = {
     "test_run": False
 }
 
+scanner_lock = {i: False for i in range(1, 7)}
+
 # -----------------------------
 # Datenbank Init
 # -----------------------------
@@ -266,33 +268,36 @@ def receive_qr():
 
     qr_text = data.get("qr")
     scanner_id = data.get("scanner")
+    print(scanner_id)
+    if not scanner_lock[scanner_id]:
+        logging.info(f"QR erkannt: {qr_text} | Scanner: {scanner_id} | Zeit: {datetime.datetime.now()}")
+        if race_state.get("running"):
 
-    logging.info(f"QR erkannt: {qr_text} | Scanner: {scanner_id} | Zeit: {datetime.datetime.now()}")
-    if race_state.get("running"):
+            if db.check_id(qr_text):
+                if scanner_id in scan_trigger:
+                    last_scans[scanner_id]=qr_text
+                    print(last_scans.get(scanner_id))
+                    with lock:
+                        scan_trigger[scanner_id] = True
+                        scan_timestamp[scanner_id] = time.time()
 
-        if db.check_id(qr_text):
-            if scanner_id in scan_trigger:
-                last_scans[scanner_id]=qr_text
-                print(last_scans.get(scanner_id))
-                with lock:
-                    scan_trigger[scanner_id] = True
-                    scan_timestamp[scanner_id] = time.time()
+                name = db.get_name_klasse(qr_text)
+                logging.info(f"👤 Benutzer: {name}")
+                db.runde_hinzufuegen(qr_text)
 
-            name = db.get_name_klasse(qr_text)
-            logging.info(f"👤 Benutzer: {name}")
-            db.runde_hinzufuegen(qr_text)
+                return jsonify({"status": "ok","text_pre":"👤", "qr": name,"text_back":"👤"})
 
-            return jsonify({"status": "ok","text_pre":"👤", "qr": name,"text_back":"👤"})
-
+            else:
+                logging.warning("⚠️ Unbekannter QR")
+                return jsonify({"status": "error"}), 400
+        elif race_state.get("test_run"):
+            return jsonify({"status": "ok", "text_pre":"Das ist nur ein Testlauf, Scanner ist Aus","qr": "","text_back":""})
+        elif race_state.get("pre_run"):
+            return jsonify({"status": "ok", "text_pre":"Der Spendenlauf hat noch nicht Begonnen, Scanner ist Aus","qr": "","text_back":""})
         else:
-            logging.warning("⚠️ Unbekannter QR")
-            return jsonify({"status": "error"}), 400
-    elif race_state.get("test_run"):
-        return jsonify({"status": "ok", "text_pre":"Das ist nur ein Testlauf, Scanner ist Aus","qr": "","text_back":""})
-    elif race_state.get("pre_run"):
-        return jsonify({"status": "ok", "text_pre":"Der Spendenlauf hat noch nicht Begonnen, Scanner ist Aus","qr": "","text_back":""})
+            return jsonify({"status": "ok", "text_pre":"Der Spendenlauf ist Beendet, Scanner ist Aus","qr": "","text_back":""})
     else:
-        return jsonify({"status": "ok", "text_pre":"Der Spendenlauf ist Beendet, Scanner ist Aus","qr": "","text_back":""})
+        return jsonify({"status": "ok", "text_pre":"Diser Scanner wurde Deaktiviert","qr": "","text_back":""})
 
 
 # -----------------------------
@@ -336,6 +341,37 @@ def api_scan_status_single(scanner_id):
         value = scan_trigger[scanner_id]
 
     return jsonify({"scanner": value})
+
+
+@app.route("/api/scan_lock/<int:scanner_id>",methods=["POST"])
+def api_scan_lock_single_post(scanner_id):
+    if scanner_id not in scanner_lock:
+        return jsonify({"status": "invalid id"}), 400
+    data = request.get_json(silent=True)
+    value=data.get("locked")
+
+    with lock:
+        scanner_lock[scanner_id] = value
+
+    return jsonify({"locked": value})
+
+@app.route("/api/scan_lock/<int:scanner_id>",methods=["GET"])
+def api_scan_lock_single(scanner_id):
+    if scanner_id not in scanner_lock:
+        return jsonify({"status": "invalid id"}), 400
+
+    with lock:
+        value = scanner_lock[scanner_id]
+
+    return jsonify({"locked": value})
+
+
+@app.route("/api/scan_lock_all/",methods=["GET"])
+def api_scan_lock_all():
+
+    return jsonify({"locked": scanner_lock})
+
+
 
 @app.route("/api/scan_status_all/")
 def api_scan_status_all():
@@ -388,4 +424,4 @@ threading.Thread(target=check_status, daemon=True).start()
 # Main
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, ssl_context="adhoc")
+    app.run(host="0.0.0.0", port=5000, ssl_context="adhoc",threaded=True)

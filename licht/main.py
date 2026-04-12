@@ -178,26 +178,36 @@ while True:
     # -----------------------------------------------------
 
     if running:
+        data3 = safe_get_json(ip + "/api/scan_lock_all/")
+        if data3:
+            locks = data3.get("locked",{})
+        else:
+            locks = {}
         scan_all = safe_get_json(f"{ip}/api/scan_status_all/")
+
         if scan_all:
             scanner_states = scan_all.get("scanner", {})
         else:
             scanner_states = {}
 
-        print(scanner_states)
         for i in range(1, 5):
-            scan_active = scanner_states.get(str(i), False)
-            active = data2.get(str(i), False)
+            if not locks.get(str(i),True):
+                scan_active = scanner_states.get(str(i), False)
+                active = data2.get(str(i), False)
 
-            new_state = (
-                "scanner" if scan_active
-                else "active" if active
-                else "inactive"
-            )
-            #if new_state=="scanner":
-            #    print("activatet")
-            #if new_state=="active":
-            #    print("Scanning")
+                new_state = (
+                    "scanner" if scan_active
+                    else "active" if active
+                    else "inactive"
+                )
+                #if new_state=="scanner":
+                #    print("activatet")
+                #if new_state=="active":
+                #    print("Scanning")
+
+
+            else:
+                new_state = "inactive"
 
             if new_state != last_scanner_state[i]:
                 note = BASE_NOTES[i] + OFFSETS[new_state]
