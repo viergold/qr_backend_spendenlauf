@@ -3,18 +3,36 @@ from flask import Flask, jsonify, request
 import requests
 from threading import Thread, Lock
 from concurrent.futures import ThreadPoolExecutor
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 app = Flask(__name__)
 
 REMOTE_SERVER = "https://localhost:5000"
 
 # ==========================================================
-# Globale HTTP-Session & ThreadPool
+# Globale HTTP-Session & ThreadPool (OPTIMIERT)
 # ==========================================================
 
 session = requests.Session()
-session.verify = False  # falls gewollt
-REQUEST_TIMEOUT = 1
+session.verify = False  # ⚠️ nur für lokale Tests!
+
+retry = Retry(
+    total=3,
+    backoff_factor=0.2,
+    status_forcelist=[500, 502, 503, 504],
+)
+
+adapter = HTTPAdapter(
+    pool_connections=32,
+    pool_maxsize=32,
+    max_retries=retry
+)
+
+session.mount("http://", adapter)
+session.mount("https://", adapter)
+
+REQUEST_TIMEOUT = (0.5, 1)  # connect, read
 
 executor = ThreadPoolExecutor(max_workers=16)
 
@@ -29,7 +47,6 @@ status_lock = Lock()
 
 
 def update_status_async():
-    """Holt Status vom Remote-Server im Hintergrund."""
     global status_last_update
     try:
         r = session.get(f"{REMOTE_SERVER}/status_api", timeout=REQUEST_TIMEOUT)
@@ -42,18 +59,15 @@ def update_status_async():
                         status[i] = data[str(i)]
                 status_last_update = now
     except Exception:
-        # Remote down → Cache bleibt gültig
         pass
 
 
 @app.route("/status_api", methods=["GET"])
 def status_api():
-    # 1. Sofort Antwort aus Cache
     with status_lock:
         response = status.copy()
         age = time.time() - status_last_update
 
-    # 2. Wenn Cache alt → Hintergrund-Update starten
     if age > STATUS_CACHE_MAX_AGE:
         executor.submit(update_status_async)
 
@@ -95,7 +109,6 @@ def forward_post(data):
                 local_dirty = False
                 awaiting_remote_confirm = False
     except Exception:
-        # Forwarding fehlgeschlagen → lokaler Zustand bleibt
         pass
 
 
@@ -129,15 +142,13 @@ def polling_thread():
                 remote_data = r.json()
                 with race_lock:
                     if not local_dirty and not awaiting_remote_confirm:
-                        # nur Felder übernehmen, die wir kennen
                         for key in status_race_json:
                             if key in remote_data:
                                 status_race_json[key] = bool(remote_data[key])
         except Exception:
-            # Remote Server nicht erreichbar
             pass
 
-        time.sleep(0.25)  # schnelleres Polling, aber noch moderat
+        time.sleep(0.25)
 
 
 # ==========================================================
@@ -151,7 +162,6 @@ scan_lock_lock = Lock()
 
 
 def update_scan_lock_async(scanner_id):
-    """Holt Wert vom Remote-Server im Hintergrund."""
     try:
         r = session.get(
             f"{REMOTE_SERVER}/api/scan_lock/{scanner_id}",
@@ -170,12 +180,10 @@ def update_scan_lock_async(scanner_id):
 
 @app.route("/api/scan_lock/<int:scanner_id>", methods=["GET"])
 def scan_lock_get(scanner_id):
-    # 1. Sofort Antwort aus Cache
     with scan_lock_lock:
         value = scan_lock_cache.get(scanner_id, False)
         age = time.time() - scan_lock_timestamp.get(scanner_id, 0.0)
 
-    # 2. Wenn Cache alt → Hintergrund-Update starten
     if age > SCAN_CACHE_MAX_AGE:
         executor.submit(update_scan_lock_async, scanner_id)
 
@@ -187,13 +195,11 @@ def scan_lock_post(scanner_id):
     payload = request.get_json(silent=True) or {}
     value = bool(payload.get("locked", False))
 
-    # 1. Cache sofort aktualisieren
     now = time.time()
     with scan_lock_lock:
         scan_lock_cache[scanner_id] = value
         scan_lock_timestamp[scanner_id] = now
 
-    # 2. Remote im Hintergrund aktualisieren
     def send_post():
         try:
             session.post(
@@ -215,5 +221,4 @@ def scan_lock_post(scanner_id):
 
 if __name__ == "__main__":
     Thread(target=polling_thread, daemon=True).start()
-    # Für echte Performance: lieber mit Gunicorn/Uvicorn starten
     app.run(host="0.0.0.0", port=5003, threaded=True)
