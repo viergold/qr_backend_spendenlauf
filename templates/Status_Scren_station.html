@@ -113,7 +113,7 @@ async function updateScanner() {
         const scanData = await fetch(`/api/scan_status/${scanner_id}`).then(r => r.json());
         const scan_active = scanData.scanner;
 
-        const lockData = await fetch('/api/scan_lock/${scanner_id}').then(r => r.json());
+        const lockData = await fetch(`/api/scan_lock/${scanner_id}`).then(r => r.json());
         const lock = lockData.locked;
 
         const nameData = await fetch(`/api/last/scan/${scanner_id}`).then(r => r.json());
