@@ -90,7 +90,7 @@ def status_screen():
 
 @app.route("/Status_screen_all")
 def status_screen_all():
-    return render_template("status_screan_station_all.html")
+    return render_template("Status_screan_station_all.html")
 
 
 @app.route("/scanner")
