@@ -85,7 +85,7 @@ def get_id():
 
 @app.route("/Status_screen")
 def status_screen():
-    return render_template("Status_scren_station.html")
+    return render_template("Status_Scren_station.html")
 
 
 @app.route("/Status_screen_all")
