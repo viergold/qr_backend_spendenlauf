@@ -6,7 +6,7 @@ def importiere_csv(dateipfad):
     db_in()
 
     with open(dateipfad, newline='', encoding="utf-8") as csvfile:
-        reader = csv.DictReader(csvfile,delimiter=';')
+        reader = csv.DictReader(csvfile)
 
         # Header bereinigen (Leerzeichen entfernen)
         reader.fieldnames = [name.strip() for name in reader.fieldnames]
@@ -33,5 +33,6 @@ def importiere_csv(dateipfad):
 if __name__ == "__main__":
 
     helper.comma_to_semicolon("schueler.csv", "schueler.csv")
+    helper.semicolon_to_comma("schueler.csv", "schueler.csv")
     helper.normalisiere_spaltennamen("schueler.csv")
     importiere_csv("schueler.csv")
