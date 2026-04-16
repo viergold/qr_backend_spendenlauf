@@ -1,15 +1,78 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
+    <meta charset="utf-8">
     <title>Klassenübersicht</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background: #f3f4f7;
+        }
+
+        .page-title {
+            font-weight: 700;
+            font-size: 2.3rem;
+            margin-bottom: 45px;
+            color: #1f2d3d;
+        }
+
+        .section-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-left: 14px;
+            border-left: 4px solid #0d6efd;
+            color: #1f2d3d;
+        }
+
+        .card-modern {
+            border-radius: 14px;
+            border: none;
+            background: #ffffff;
+        }
+
+        .btn-group-flex {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .class-item {
+            font-size: 1.15rem;
+            font-weight: 500;
+            color: #1f2d3d;
+        }
+
+        .sub-item {
+            padding-left: 45px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .list-group-item:hover {
+            background: #eef2ff;
+        }
+
+        .input-label {
+            font-weight: 600;
+            color: #1f2d3d;
+        }
+
+        .shadow-soft {
+            box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+        }
+    </style>
 </head>
-<body class="bg-light">
+
+<body>
+
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     <div class="container mt-3">
       {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
           {{ message }}
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -17,22 +80,98 @@
     </div>
   {% endif %}
 {% endwith %}
-<div class="container py-5">
-    <h1 class="mb-4 text-center">Klassenübersicht</h1>
 
-    <div class="list-group shadow">
+<div class="container py-5">
+
+    <h1 class="text-center page-title">📚 Klassenübersicht</h1>
+
+    <!-- Export / Druck Bereich -->
+    <div class="card card-modern shadow-soft mb-5">
+        <div class="card-body">
+
+            <div class="section-header">Export & Druck</div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-md-4">
+                    <label class="input-label">Klasse auswählen:</label>
+                    <select id="klasseSelect" class="form-select shadow-sm">
+                        {% for k in klassen %}
+                            <option value="{{ k }}">{{ k }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-8 d-flex justify-content-end align-items-end">
+                    <div class="btn-group-flex">
+                        <button class="btn btn-primary" onclick="openClass()">Öffnen</button>
+                        <button class="btn btn-success" onclick="exportCSV()">CSV</button>
+                        <button class="btn btn-danger" onclick="exportPDF()">PDF</button>
+                        <button class="btn btn-secondary" onclick="druck()">Drucken</button>
+                        <button class="btn btn-outline-primary" onclick="exportTop15()">Top 15</button>
+                        <button class="btn btn-outline-danger" onclick="exportFastest()">Schnellste</button>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="btn-group-flex mb-4">
+                <button class="btn btn-outline-dark" onclick="exportClassRanking()">Klassen-Ranking</button>
+                <button class="btn btn-outline-dark" onclick="exportAllStudents()">Alle Schüler</button>
+                <button class="btn btn-outline-dark" onclick="exportMinRunden()">Min. Runden</button>
+                <button class="btn btn-outline-dark" onclick="exportTimeFilter()">Zeit-Filter</button>
+                <button class="btn btn-outline-secondary" onclick="druckAlle()">Alle drucken</button>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <label class="input-label">Min. Runden:</label>
+                    <input type="number" id="minRundenInput" class="form-control shadow-sm" value="10">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="input-label">Max. Zeit (z.B. 60):</label>
+                    <input type="number" id="maxTimeInput" class="form-control shadow-sm" value="60">
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Klassenliste -->
+    <div class="section-header">Alle Klassen</div>
+
+    <div class="list-group shadow-soft">
         {% for k in klassen %}
-        <a href="/klasse/{{ k }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+        <a href="/klasse/{{ k }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center class-item">
             <span>Klasse {{ k }}</span>
             <span class="badge bg-primary rounded-pill">Spenden</span>
         </a>
-
-        <a href="/klasse/{{ k }}/erlaufenes_geld" class="list-group-item list-group-item-action text-secondary">
+        <a href="/klasse/{{ k }}/erlaufenes_geld" class="list-group-item list-group-item-action sub-item">
             ➜ Erlaufenes Geld anzeigen
         </a>
         {% endfor %}
     </div>
+
 </div>
+
+<script>
+function getKlasse() {
+    return document.getElementById("klasseSelect").value;
+}
+
+function openClass() { window.location.href = "/klasse/" + getKlasse(); }
+function exportCSV() { window.location.href = "/export/csv/class/" + getKlasse(); }
+function exportPDF() { window.location.href = "/export/pdf/class/" + getKlasse(); }
+function druck() { window.location.href = "/druck/" + getKlasse(); }
+function exportTop15() { window.location.href = "/export/csv/top15/" + getKlasse(); }
+function exportFastest() { window.location.href = "/export/csv/fastest/" + getKlasse(); }
+function exportClassRanking() { window.location.href = "/export/csv/class_ranking"; }
+function exportAllStudents() { window.location.href = "/export/csv/all_students"; }
+function exportMinRunden() { window.location.href = "/export/csv/min_runden/" + (document.getElementById("minRundenInput").value || 0); }
+function exportTimeFilter() { window.location.href = "/export/csv/time_filter/" + (document.getElementById("maxTimeInput").value || 0); }
+function druckAlle() { window.location.href = "/druck/alle"; }
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
