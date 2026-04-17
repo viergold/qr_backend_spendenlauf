@@ -20,11 +20,12 @@ fi
 echo ""
 echo "Was möchtest du tun?"
 echo "1) SRS + camera_server.py + app.py starten"
-echo "2) Alles stoppen"
-echo "3) Status anzeigen"
-echo "4) IP aus Logs anzeigen"
-echo "5) Beenden"
-echo "6) Import"
+echo "2) Start Webserver"
+echo "3) Alles stoppen"
+echo "4) Status anzeigen"
+echo "5) IP aus Logs anzeigen"
+echo "6) Beenden"
+echo "7) Import"
 echo ""
 
 read -p "Auswahl: " choice
@@ -54,9 +55,22 @@ case $choice in
         echo -e "${GREEN}Starte app.py...${NC}"
         nohup python3 app.py > app.log 2>&1 &
 
+        echo -e "${GREEN}Starte app.py...${NC}"
+        nohup python3 elgato_streamdaeck_server.py > elgato_streamdaeck_server.log 2>&1 &
+
         echo -e "${GREEN}Alles läuft jetzt.${NC}"
         ;;
     2)
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requerments.txt
+
+        echo -e "${GREEN}Starte webserver.py...${NC}"
+        nohup python3 webserver.py > webserver.log 2>&1 &
+        echo -e "${GREEN}Alles läuft jetzt.${NC}"
+      ;;
+    3)
         echo -e "${RED}Stoppe SRS Container...${NC}"
         sudo docker stop srs
         sudo docker rm srs
@@ -69,26 +83,26 @@ case $choice in
 
         echo -e "${GREEN}Alles wurde gestoppt.${NC}"
         ;;
-    3)
+    4)
         echo -e "${GREEN}Docker Container Status:${NC}"
         sudo docker ps
         echo ""
         echo -e "${GREEN}Python Prozesse:${NC}"
         ps aux | grep -E "camera_server.py|app.py" | grep -v grep
         ;;
-    4)
+    5)
         echo -e "${GREEN}IP aus camera_server.log:${NC}"
         grep -oP "IP:\s*\K[0-9\.]+" camera_server.log | tail -n 1
 
         echo -e "${GREEN}IP aus app.log:${NC}"
         grep -oP "IP:\s*\K[0-9\.]+" app.log | tail -n 1
         ;;
-    5)
+    6)
         echo "Beende Script."
         exit 0
         ;;
 
-    6)
+    7)
         echo -e "${YELLOW}Starte db.py...${NC}"
         if python3 db.py; then
             echo -e "${GREEN}db.py erfolgreich beendet.${NC}"
